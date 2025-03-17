@@ -8,6 +8,8 @@ from .gu_common import GenericConfigUpdaterError
 from swsscommon import swsscommon
 from utilities_common.constants import DEFAULT_SUPPORTED_FECS_LIST
 
+STATE_DB_NAME = 'STATE_DB'
+REDIS_TIMEOUT_MSECS = 0
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 GCU_TABLE_MOD_CONF_FILE = f"{SCRIPT_DIR}/gcu_field_operation_validators.conf.json"
 GET_HWSKU_CMD = "sonic-cfggen -d -v DEVICE_METADATA.localhost.hwsku"
@@ -88,7 +90,7 @@ def buffer_profile_config_update_validator(patch_element):
     return rdma_config_update_validator(patch_element)
 
 
-def rdma_config_update_validator(patch_element):
+def rdma_config_update_validator(scope, patch_element):
     asic = get_asic_name()
     if asic == "unknown":
         return False
@@ -161,17 +163,17 @@ def rdma_config_update_validator(patch_element):
     return True
 
 
-def read_statedb_entry(table, key, field):
-    state_db = swsscommon.DBConnector("STATE_DB", 0)
+def read_statedb_entry(scope, table, key, field):
+    state_db = swsscommon.DBConnector(STATE_DB_NAME, REDIS_TIMEOUT_MSECS, True, scope)
     tbl = swsscommon.Table(state_db, table)
     return tbl.hget(key, field)[1]
 
 
-def port_config_update_validator(patch_element):
+def port_config_update_validator(scope, patch_element):
 
     def _validate_field(field, port, value):
         if field == "fec":
-            supported_fecs_str = read_statedb_entry("PORT_TABLE", port, "supported_fecs")
+            supported_fecs_str = read_statedb_entry(scope, "PORT_TABLE", port, "supported_fecs")
             if supported_fecs_str:
                 if supported_fecs_str != 'N/A':
                     supported_fecs_list = [element.strip() for element in supported_fecs_str.split(',')]
@@ -186,7 +188,7 @@ def port_config_update_validator(patch_element):
             # For chassis, skip speed validation as desired speed is not in supported_speeds of StateDB.
             if device_info.is_chassis():
                 return True
-            supported_speeds_str = read_statedb_entry("PORT_TABLE", port, "supported_speeds") or ''
+            supported_speeds_str = read_statedb_entry(scope, "PORT_TABLE", port, "supported_speeds") or ''
             try:
                 supported_speeds = [int(s) for s in supported_speeds_str.split(',') if s]
                 if supported_speeds and int(value) not in supported_speeds:
