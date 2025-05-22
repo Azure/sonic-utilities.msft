@@ -2211,7 +2211,7 @@ This command displays the state and key parameters of all BFD sessions.
 
 - Usage:
   ```
-  show bfd summary
+  show bfd summary [-n <namespace>]
   ```
 - Example:
   ```
@@ -2230,7 +2230,7 @@ This command displays the state and key parameters of all BFD sessions that matc
 
 - Usage:
   ```
-  show bfd peer <peer-ip>
+  show bfd peer <peer-ip> [-n <namespace>]
   ```
 - Example:
   ```
