@@ -895,20 +895,14 @@ def check_sids(namespace):
         print_message(syslog.LOG_INFO, "Checking SIDs for namespaces: ", namespace_list)
 
     results = {}
-
-    # Use ThreadPoolExecutor to parallelize the check for each namespace
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(check_sids_for_namespace, ns): ns for ns in namespace_list}
-
-        for future in concurrent.futures.as_completed(futures):
-            ns = futures[future]
-            try:
-                result = future.result()
-                if result:
-                    results[ns] = result
-            except Exception as e:
-                print_message(syslog.LOG_ERR, "Error processing namespace {}: {}".format(ns, e))
-                return -1, results
+    for namespace in namespace_list:
+        try:
+            result = check_sids_for_namespace(namespace)
+            if result:
+                results[namespace] = result
+        except Exception as e:
+            print_message(syslog.LOG_ERR, "Error processing namespace {}: {}".format(namespace, e))
+            return -1, results
 
     if results:
         print_message(syslog.LOG_WARNING, "SIDs Check Failure results: {",  json.dumps(results, indent=4), "}")
