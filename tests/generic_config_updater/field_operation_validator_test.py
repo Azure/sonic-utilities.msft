@@ -1,18 +1,15 @@
-import io
+import pytest
 import unittest
 import mock
-import json
-import subprocess
 import generic_config_updater
 import generic_config_updater.field_operation_validators as fov
 import generic_config_updater.gu_common as gu_common
 
-from unittest.mock import MagicMock, Mock, mock_open
+from unittest.mock import mock_open
 from mock import patch
-from sonic_py_common.device_info import get_hwsku, get_sonic_version_info
 
 
-class TestValidateFieldOperation(unittest.TestCase):
+class TestValidateFieldOperation:
 
     @patch("generic_config_updater.field_operation_validators.read_statedb_entry", mock.Mock(return_value=""))
     def test_port_config_update_validator_valid_speed_no_state_db(self):
@@ -105,6 +102,39 @@ class TestValidateFieldOperation(unittest.TestCase):
     def test_rdma_config_update_validator_td3_asic_invalid_version(self):
         patch_element = {"path": "/BUFFER_POOL/ingress_lossless_pool/xoff", "op": "replace", "value": "234234"}
         assert generic_config_updater.field_operation_validators.rdma_config_update_validator(patch_element) == False
+
+    @pytest.mark.parametrize(
+        "field,value,op", [
+            pytest.param("xoff", "1000", "replace"),
+            pytest.param("dynamic_th", "0", "replace"),
+            pytest.param("packet_discard_action", "trim", "add"),
+            pytest.param("packet_discard_action", "drop", "replace")
+        ]
+    )
+    @pytest.mark.parametrize(
+        "asic", [
+            "spc4",
+            "spc5"
+        ]
+    )
+    def test_buffer_profile_config_update_validator(self, asic, field, value, op):
+        patch_element = {
+            "path": "/BUFFER_PROFILE/sample_profile/{}".format(field),
+            "op": op,
+            "value": value
+        }
+
+        with (
+            patch(
+                "generic_config_updater.field_operation_validators.get_asic_name",
+                return_value=asic
+            ),
+            patch(
+                "sonic_py_common.device_info.get_sonic_version_info",
+                return_value={"build_version": "SONiC.20241200"}
+            )
+        ):
+            assert fov.buffer_profile_config_update_validator(patch_element) is True
 
     @patch("sonic_py_common.device_info.get_sonic_version_info", mock.Mock(return_value={"build_version": "SONiC.20220530"}))
     @patch("generic_config_updater.field_operation_validators.get_asic_name", mock.Mock(return_value="spc1"))
@@ -231,7 +261,7 @@ class TestValidateFieldOperation(unittest.TestCase):
         old_config = {"PFC_WD": {"GLOBAL": {"POLL_INTERVAL": "60"}}}
         target_config = {"PFC_WD": {"GLOBAL": {}}}
         config_wrapper = gu_common.ConfigWrapper()
-        self.assertRaises(gu_common.IllegalPatchOperationError, config_wrapper.validate_field_operation, old_config, target_config)
+        pytest.raises(gu_common.IllegalPatchOperationError, config_wrapper.validate_field_operation, old_config, target_config)
 
     def test_validate_field_operation_legal__rm_loopback1(self):
         old_config = {
@@ -267,7 +297,7 @@ class TestValidateFieldOperation(unittest.TestCase):
             }
         }
         config_wrapper = gu_common.ConfigWrapper()
-        self.assertRaises(gu_common.IllegalPatchOperationError, config_wrapper.validate_field_operation, old_config, target_config)
+        pytest.raises(gu_common.IllegalPatchOperationError, config_wrapper.validate_field_operation, old_config, target_config)
 
     def test_validate_field_operation_illegal__dataacl_table_type_update_and_rule_change(self):
         old_config = {
@@ -295,8 +325,8 @@ class TestValidateFieldOperation(unittest.TestCase):
             }
         }
         config_wrapper = gu_common.ConfigWrapper()
-        self.assertRaises(gu_common.IllegalPatchOperationError,
-                          config_wrapper.validate_field_operation, old_config, target_config)
+        pytest.raises(gu_common.IllegalPatchOperationError,
+                      config_wrapper.validate_field_operation, old_config, target_config)
 
     def test_validate_field_operation_legal__only_dataacl_table_type_update(self):
         old_config = {
