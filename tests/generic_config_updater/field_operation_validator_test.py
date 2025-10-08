@@ -114,7 +114,8 @@ class TestValidateFieldOperation:
     @pytest.mark.parametrize(
         "asic", [
             "spc4",
-            "spc5"
+            "spc5",
+            "th5"
         ]
     )
     def test_buffer_profile_config_update_validator(self, asic, field, value, op):
