@@ -101,7 +101,7 @@
             }
         },
         "BUFFER_PROFILE": {
-            "field_operation_validators": [ "generic_config_updater.field_operation_validators.rdma_config_update_validator" ],
+            "field_operation_validators": [ "generic_config_updater.field_operation_validators.buffer_profile_config_update_validator" ],
             "validator_data": {
                 "rdma_config_update_validator": {
                     "Dynamic threshold tuning": {
