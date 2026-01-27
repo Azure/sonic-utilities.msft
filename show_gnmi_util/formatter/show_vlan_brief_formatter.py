@@ -3,6 +3,8 @@ Formatter for 'show vlan brief' command
 """
 
 from typing import Dict, Any, List
+from tabulate import tabulate
+from natsort import natsorted
 from ..common.base_formatter import BaseFormatter
 
 
@@ -34,7 +36,7 @@ class ShowVlanBriefFormatter(BaseFormatter):
     
     def _build_vlan_table(self, vlan_data: Dict[str, Any]) -> str:
         """
-        Build VLAN table from JSON data
+        Build VLAN table from JSON data using tabulate
         
         Args:
             vlan_data: Dictionary with VLAN information
@@ -45,36 +47,32 @@ class ShowVlanBriefFormatter(BaseFormatter):
         # Define headers
         headers = ['VLAN', 'IP Address', 'Ports', 'Port Tagging', 'DHCP Helper Address', 'Proxy ARP']
         
-        # Calculate column widths
-        col_widths = {
-            'VLAN': len('VLAN'),
-            'IP Address': len('IP Address'),
-            'Ports': len('Ports'),
-            'Port Tagging': len('Port Tagging'),
-            'DHCP Helper Address': len('DHCP Helper Address'),
-            'Proxy ARP': len('Proxy ARP')
-        }
-        
         # Prepare rows
-        rows = []
-        for vlan_name, vlan_info in sorted(vlan_data.items()):
+        table_data = []
+        
+        # Use natsorted for natural sorting (Vlan1, Vlan2, Vlan10, Vlan20, etc.)
+        for vlan_name in natsorted(vlan_data.keys()):
+            vlan_info = vlan_data[vlan_name]
             vlan_id = vlan_info.get('vlan_id', '')
             ip_addresses = vlan_info.get('ip_address', [])
             ports_list = vlan_info.get('ports', [])
             dhcp_helpers = vlan_info.get('dhcp_helper_addresses', [])
             proxy_arp = vlan_info.get('proxy_arp', 'disabled')
             
+            # Format IP addresses and DHCP helpers
+            ip_addr_str = ', '.join(ip_addresses) if ip_addresses else ''
+            dhcp_helper_str = ', '.join(dhcp_helpers) if dhcp_helpers else ''
+            
             # Handle multiple ports - create separate rows for each port
             if not ports_list:
-                row = {
-                    'VLAN': vlan_id,
-                    'IP Address': ', '.join(ip_addresses) if ip_addresses else '',
-                    'Ports': '',
-                    'Port Tagging': '',
-                    'DHCP Helper Address': ', '.join(dhcp_helpers) if dhcp_helpers else '',
-                    'Proxy ARP': proxy_arp
-                }
-                rows.append(row)
+                table_data.append([
+                    vlan_id,
+                    ip_addr_str,
+                    '',
+                    '',
+                    dhcp_helper_str,
+                    proxy_arp
+                ])
             else:
                 for idx, port_info in enumerate(ports_list):
                     port_name = port_info.get('name', '')
@@ -82,45 +80,24 @@ class ShowVlanBriefFormatter(BaseFormatter):
                     
                     if idx == 0:
                         # First row shows VLAN ID and all info
-                        row = {
-                            'VLAN': vlan_id,
-                            'IP Address': ', '.join(ip_addresses) if ip_addresses else '',
-                            'Ports': port_name,
-                            'Port Tagging': port_tagging,
-                            'DHCP Helper Address': ', '.join(dhcp_helpers) if dhcp_helpers else '',
-                            'Proxy ARP': proxy_arp
-                        }
+                        table_data.append([
+                            vlan_id,
+                            ip_addr_str,
+                            port_name,
+                            port_tagging,
+                            dhcp_helper_str,
+                            proxy_arp
+                        ])
                     else:
                         # Subsequent rows only show port info
-                        row = {
-                            'VLAN': '',
-                            'IP Address': '',
-                            'Ports': port_name,
-                            'Port Tagging': port_tagging,
-                            'DHCP Helper Address': '',
-                            'Proxy ARP': ''
-                        }
-                    rows.append(row)
-            
-            # Update column widths
-            for row in rows:
-                for key, value in row.items():
-                    col_widths[key] = max(col_widths[key], len(str(value)))
+                        table_data.append([
+                            '',
+                            '',
+                            port_name,
+                            port_tagging,
+                            '',
+                            ''
+                        ])
         
-        # Build table output
-        table_lines = []
-        
-        # Create separator line
-        separator = '-' * (sum(col_widths.values()) + 3 * (len(headers) - 1))
-        
-        # Header
-        header_line = '   '.join([header.ljust(col_widths[header]) for header in headers])
-        table_lines.append(header_line)
-        table_lines.append(separator)
-        
-        # Data rows
-        for row in rows:
-            data_line = '   '.join([str(row[header]).ljust(col_widths[header]) for header in headers])
-            table_lines.append(data_line)
-        
-        return '\n'.join(table_lines)
+        # Use tabulate with 'simple' format (includes separator line)
+        return tabulate(table_data, headers=headers, tablefmt='simple', stralign='left')

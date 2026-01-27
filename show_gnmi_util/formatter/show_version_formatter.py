@@ -3,6 +3,7 @@ Formatter for 'show version' command
 """
 
 from typing import Dict, Any, List
+from tabulate import tabulate
 from ..common.base_formatter import BaseFormatter
 
 
@@ -69,7 +70,7 @@ class ShowVersionFormatter(BaseFormatter):
     
     def _format_docker_table(self, docker_images: List[Dict[str, str]]) -> str:
         """
-        Format docker images as a table
+        Format docker images as a table using tabulate
         
         Args:
             docker_images: List of docker image dictionaries
@@ -80,59 +81,22 @@ class ShowVersionFormatter(BaseFormatter):
         if not docker_images:
             return ""
         
-        # Define column headers and widths
+        # Prepare table data
         headers = ['REPOSITORY', 'TAG', 'IMAGE ID', 'SIZE']
+        table_data = []
         
-        # Calculate column widths
-        col_widths = {
-            'REPOSITORY': len('REPOSITORY'),
-            'TAG': len('TAG'),
-            'IMAGE ID': len('IMAGE ID'),
-            'SIZE': len('SIZE')
-        }
-        
-        # Update widths based on data
-        for image in docker_images:
-            col_widths['REPOSITORY'] = max(col_widths['REPOSITORY'], len(image.get('Repository', '')))
-            col_widths['TAG'] = max(col_widths['TAG'], len(image.get('Tag', '')))
-            
-            # Extract short image ID (first 12 chars after sha256:)
-            image_id = image.get('ID', '')
-            if image_id.startswith('sha256:'):
-                image_id = image_id[7:19]
-            col_widths['IMAGE ID'] = max(col_widths['IMAGE ID'], len(image_id))
-            
-            col_widths['SIZE'] = max(col_widths['SIZE'], len(image.get('Size', '')))
-        
-        # Build table
-        table_lines = []
-        
-        # Header line
-        header_line = "{}   {}   {}   {}".format(
-            'REPOSITORY'.ljust(col_widths['REPOSITORY']),
-            'TAG'.ljust(col_widths['TAG']),
-            'IMAGE ID'.ljust(col_widths['IMAGE ID']),
-            'SIZE'.ljust(col_widths['SIZE'])
-        )
-        table_lines.append(header_line)
-        
-        # Data lines
         for image in docker_images:
             repo = image.get('Repository', '')
             tag = image.get('Tag', '')
             image_id = image.get('ID', '')
             size = image.get('Size', '')
             
-            # Extract short image ID
+            # Extract short image ID (first 12 chars after sha256:)
             if image_id.startswith('sha256:'):
                 image_id = image_id[7:19]
             
-            data_line = "{}   {}   {}   {}".format(
-                repo.ljust(col_widths['REPOSITORY']),
-                tag.ljust(col_widths['TAG']),
-                image_id.ljust(col_widths['IMAGE ID']),
-                size.ljust(col_widths['SIZE'])
-            )
-            table_lines.append(data_line)
+            table_data.append([repo, tag, image_id, size])
         
-        return "\n".join(table_lines)
+        # Use tabulate to format the table
+        # 'plain' tablefmt matches the simple format used in show version
+        return tabulate(table_data, headers=headers, tablefmt='plain')

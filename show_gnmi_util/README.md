@@ -5,7 +5,7 @@ This package provides formatters to convert JSON output from show commands into 
 ## Structure
 
 show_gnmi_util/ 
-├── common/# Common utilities and base classes 
+├── common/              # Common utilities and base classes 
 ├── formatter/           # Command-specific formatters 
 ├── scripts/             # Sample JSON files and CLI tool 
 └── test/                # Unit tests
