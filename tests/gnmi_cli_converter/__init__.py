@@ -1,3 +1,3 @@
 """
-GNMI CLI Converter 测试模块初始化文件
+GNMI CLI Converter test module initialization file
 """
