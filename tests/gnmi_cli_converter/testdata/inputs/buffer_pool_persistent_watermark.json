@@ -1,0 +1,4 @@
+{
+    "egress_lossless_pool": {"Bytes": "11111"},
+    "ingress_lossless_pool": {"Bytes": "22222"}
+}
