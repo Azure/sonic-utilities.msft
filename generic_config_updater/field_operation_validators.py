@@ -169,10 +169,6 @@ def buffer_profile_config_update_validator(patch_element):
     return rdma_config_update_validator_common(patch_element)
 
 
-def wred_profile_config_update_validator(patch_element):
-    return rdma_config_update_validator_common(patch_element)
-
-
 def read_statedb_entry(table, key, field):
     state_db = swsscommon.DBConnector("STATE_DB", 0)
     tbl = swsscommon.Table(state_db, table)
