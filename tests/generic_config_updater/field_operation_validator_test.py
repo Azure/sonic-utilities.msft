@@ -214,12 +214,25 @@ class TestValidateFieldOperation:
             }
         }
         config_wrapper = gu_common.ConfigWrapper()
-        pytest.raises(
-            gu_common.IllegalPatchOperationError,
-            config_wrapper.validate_field_operation,
-            old_config,
-            target_config
-        )
+        original_validator = fov.rdma_config_update_validator
+
+        def _rdma_validator_wrapper(*args, **kwargs):
+            if args:
+                patch_element = args[-1]
+            else:
+                patch_element = kwargs.get("patch_element")
+            return original_validator(patch_element)
+
+        with patch(
+            "generic_config_updater.field_operation_validators.rdma_config_update_validator",
+            side_effect=_rdma_validator_wrapper,
+        ):
+            pytest.raises(
+                gu_common.IllegalPatchOperationError,
+                config_wrapper.validate_field_operation,
+                old_config,
+                target_config
+            )
 
     def test_validate_field_operation_legal__rm_loopback1(self):
         old_config = {
