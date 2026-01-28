@@ -41,8 +41,8 @@ class TestCLIConverter:
     def test_convert_basic(self, converter, buffer_pool_watermark_json):
         """Test basic convert functionality"""
         output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            buffer_pool_watermark_json
+            buffer_pool_watermark_json,
+            path_elems=["buffer_pool", "watermark"]
         )
         
         # Check output contains title
@@ -58,22 +58,151 @@ class TestCLIConverter:
         assert "67890" in output
         assert "24680" in output
     
+    def test_convert_with_xpath(self, converter, buffer_pool_watermark_json):
+        """Test convert using xpath"""
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            xpath="/buffer_pool/watermark"
+        )
+        
+        assert "Shared pool maximum occupancy:" in output
+        assert "egress_lossless_pool" in output
+    
+    def test_convert_with_xpath_no_leading_slash(self, converter, buffer_pool_watermark_json):
+        """Test convert using xpath without leading slash"""
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            xpath="buffer_pool/watermark"
+        )
+        
+        assert "Shared pool maximum occupancy:" in output
+    
+    def test_convert_with_command(self, converter, buffer_pool_watermark_json):
+        """Test convert using show command"""
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            command="show buffer_pool watermark"
+        )
+        
+        assert "Shared pool maximum occupancy:" in output
+        assert "egress_lossless_pool" in output
+    
+    def test_convert_with_command_no_show_prefix(self, converter, buffer_pool_watermark_json):
+        """Test convert using command without show prefix"""
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            command="buffer_pool watermark"
+        )
+        
+        assert "Shared pool maximum occupancy:" in output
+    
+    def test_convert_multiple_specifiers_error(self, converter, buffer_pool_watermark_json):
+        """Test error when multiple path specifiers provided"""
+        with pytest.raises(ValueError) as exc_info:
+            converter.convert(
+                buffer_pool_watermark_json,
+                path_elems=["buffer_pool", "watermark"],
+                xpath="/buffer_pool/watermark"
+            )
+        
+        assert "exactly one" in str(exc_info.value)
+    
+    def test_convert_no_specifier_error(self, converter, buffer_pool_watermark_json):
+        """Test error when no path specifier provided"""
+        with pytest.raises(ValueError) as exc_info:
+            converter.convert(buffer_pool_watermark_json)
+        
+        assert "exactly one" in str(exc_info.value)
+    
+    def test_is_supported_with_xpath(self, converter):
+        """Test is_supported with xpath"""
+        assert converter.is_supported(xpath="/buffer_pool/watermark") is True
+        assert converter.is_supported(xpath="/unknown/path") is False
+    
+    def test_is_supported_with_command(self, converter):
+        """Test is_supported with command"""
+        assert converter.is_supported(command="show buffer_pool watermark") is True
+        assert converter.is_supported(command="show unknown path") is False
+    
+    def test_xpath_to_path_elems_basic(self, converter):
+        """Test _xpath_to_path_elems basic parsing"""
+        path_elems, options = CLIConverter._xpath_to_path_elems("/buffer_pool/watermark")
+        assert path_elems == ["buffer_pool", "watermark"]
+        assert options == {}
+    
+    def test_xpath_to_path_elems_with_options(self, converter):
+        """Test _xpath_to_path_elems with options"""
+        path_elems, options = CLIConverter._xpath_to_path_elems(
+            "/interfaces/counters[printall=true][interfaces=Ethernet0]"
+        )
+        assert path_elems == ["interfaces", "counters"]
+        assert options == {"printall": True, "interfaces": "Ethernet0"}
+    
+    def test_xpath_to_path_elems_type_conversion(self, converter):
+        """Test _xpath_to_path_elems converts types correctly"""
+        path_elems, options = CLIConverter._xpath_to_path_elems(
+            "/queue/counters[nonzero=true][period=10][verbose=false]"
+        )
+        assert options["nonzero"] is True
+        assert options["period"] == 10
+        assert options["verbose"] is False
+    
+    def test_command_to_path_elems_basic(self, converter):
+        """Test _command_to_path_elems basic parsing"""
+        path_elems, options = CLIConverter._command_to_path_elems("show buffer_pool watermark")
+        assert path_elems == ["buffer_pool", "watermark"]
+        assert options == {}
+    
+    def test_command_to_path_elems_with_options(self, converter):
+        """Test _command_to_path_elems with options"""
+        path_elems, options = CLIConverter._command_to_path_elems(
+            "show interfaces counters --printall --interfaces=Ethernet0"
+        )
+        assert path_elems == ["interfaces", "counters"]
+        assert options == {"printall": True, "interfaces": "Ethernet0"}
+    
+    def test_command_to_path_elems_type_conversion(self, converter):
+        """Test _command_to_path_elems converts types correctly"""
+        path_elems, options = CLIConverter._command_to_path_elems(
+            "show queue counters --nonzero --period=10 --verbose=false"
+        )
+        assert options["nonzero"] is True
+        assert options["period"] == 10
+        assert options["verbose"] is False
+    
+    def test_convert_xpath_with_options(self, converter, buffer_pool_watermark_json):
+        """Test convert using xpath with embedded options"""
+        # Note: buffer_pool doesn't use options, but we verify options are parsed
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            xpath="/buffer_pool/watermark[verbose=true]"
+        )
+        assert "Shared pool maximum occupancy:" in output
+    
+    def test_convert_command_with_options(self, converter, buffer_pool_watermark_json):
+        """Test convert using command with embedded options"""
+        output = converter.convert(
+            buffer_pool_watermark_json,
+            command="show buffer_pool watermark --verbose"
+        )
+        assert "Shared pool maximum occupancy:" in output
+
     def test_convert_not_found(self, converter):
         """Test unregistered path throws PathNotFoundError"""
         with pytest.raises(PathNotFoundError) as exc_info:
-            converter.convert(["unknown", "path"], {})
+            converter.convert({}, path_elems=["unknown", "path"])
         
         assert "unknown" in str(exc_info.value)
     
     def test_is_supported_registered(self, converter):
         """Test registered path returns True"""
-        assert converter.is_supported(["buffer_pool", "watermark"]) is True
-        assert converter.is_supported(["buffer_pool", "persistent-watermark"]) is True
+        assert converter.is_supported(path_elems=["buffer_pool", "watermark"]) is True
+        assert converter.is_supported(path_elems=["buffer_pool", "persistent-watermark"]) is True
     
     def test_is_supported_not_registered(self, converter):
         """Test unregistered path returns False"""
-        assert converter.is_supported(["unknown", "path"]) is False
-        assert converter.is_supported([]) is False
+        assert converter.is_supported(path_elems=["unknown", "path"]) is False
+        assert converter.is_supported(path_elems=[]) is False
     
     def test_list_commands(self, converter):
         """Test listing all supported commands"""
@@ -115,15 +244,15 @@ class TestRegistry:
         try:
             # Register a command with wildcard
             @register(["test", "wildcard", "*"])
-            def render_test_wildcard(json_data, path_elems):
+            def render_test_wildcard(json_data, path_elems, options):
                 return f"param: {path_elems[2]}"
             
             # Test wildcard matching
             renderer = get_renderer(["test", "wildcard", "Ethernet0"])
-            assert renderer({"data": "test"}, ["test", "wildcard", "Ethernet0"]) == "param: Ethernet0"
+            assert renderer({"data": "test"}, ["test", "wildcard", "Ethernet0"], {}) == "param: Ethernet0"
             
             renderer = get_renderer(["test", "wildcard", "Ethernet4"])
-            assert renderer({"data": "test"}, ["test", "wildcard", "Ethernet4"]) == "param: Ethernet4"
+            assert renderer({"data": "test"}, ["test", "wildcard", "Ethernet4"], {}) == "param: Ethernet4"
         
         finally:
             # Restore original registry

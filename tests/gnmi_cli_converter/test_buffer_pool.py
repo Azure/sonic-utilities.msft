@@ -44,29 +44,11 @@ def buffer_pool_persistent_watermark_json():
 class TestBufferPoolWatermark:
     """Tests for show buffer_pool watermark command"""
     
-    def test_basic_output(self, converter, buffer_pool_watermark_json):
-        """Test basic output format"""
-        output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            buffer_pool_watermark_json
-        )
-        
-        # Check title
-        assert "Shared pool maximum occupancy:" in output
-        
-        # Check headers
-        assert "Pool" in output
-        assert "Bytes" in output
-        
-        # Check data
-        assert "egress_lossless_pool" in output
-        assert "12345" in output
-    
     def test_output_matches_expected(self, converter, buffer_pool_watermark_json):
         """Test output matches expected file exactly"""
         output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            buffer_pool_watermark_json
+            buffer_pool_watermark_json,
+            path_elems=["buffer_pool", "watermark"]
         )
         expected = load_expected("buffer_pool_watermark.txt")
         assert output == expected
@@ -80,8 +62,8 @@ class TestBufferPoolWatermark:
         }
         
         output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            json_data
+            json_data,
+            path_elems=["buffer_pool", "watermark"]
         )
         
         # Check all pools are in output
@@ -102,8 +84,8 @@ class TestBufferPoolWatermark:
     def test_empty_data(self, converter):
         """Test empty data handling"""
         output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            {}
+            {},
+            path_elems=["buffer_pool", "watermark"]
         )
         
         assert "Shared pool maximum occupancy:" in output
@@ -116,8 +98,8 @@ class TestBufferPoolWatermark:
         }
         
         output = converter.convert(
-            ["buffer_pool", "watermark"], 
-            json_data
+            json_data,
+            path_elems=["buffer_pool", "watermark"]
         )
         
         assert "pool_without_bytes" in output
@@ -127,27 +109,11 @@ class TestBufferPoolWatermark:
 class TestBufferPoolPersistentWatermark:
     """Tests for show buffer_pool persistent-watermark command"""
     
-    def test_basic_output(self, converter, buffer_pool_persistent_watermark_json):
-        """Test basic output format"""
-        output = converter.convert(
-            ["buffer_pool", "persistent-watermark"], 
-            buffer_pool_persistent_watermark_json
-        )
-        
-        # Check title
-        assert "Shared pool maximum occupancy:" in output
-        
-        # Check data
-        assert "egress_lossless_pool" in output
-        assert "11111" in output
-        assert "ingress_lossless_pool" in output
-        assert "22222" in output
-    
     def test_output_matches_expected(self, converter, buffer_pool_persistent_watermark_json):
         """Test output matches expected file exactly"""
         output = converter.convert(
-            ["buffer_pool", "persistent-watermark"], 
-            buffer_pool_persistent_watermark_json
+            buffer_pool_persistent_watermark_json,
+            path_elems=["buffer_pool", "persistent-watermark"]
         )
         expected = load_expected("buffer_pool_persistent_watermark.txt")
         assert output == expected
@@ -155,8 +121,8 @@ class TestBufferPoolPersistentWatermark:
     def test_empty_data(self, converter):
         """Test empty data handling"""
         output = converter.convert(
-            ["buffer_pool", "persistent-watermark"], 
-            {}
+            {},
+            path_elems=["buffer_pool", "persistent-watermark"]
         )
         
         assert "Shared pool maximum occupancy:" in output
@@ -168,8 +134,8 @@ class TestBufferPoolIntegration:
     
     def test_both_commands_registered(self, converter):
         """Test both commands are registered"""
-        assert converter.is_supported(["buffer_pool", "watermark"]) is True
-        assert converter.is_supported(["buffer_pool", "persistent-watermark"]) is True
+        assert converter.is_supported(path_elems=["buffer_pool", "watermark"]) is True
+        assert converter.is_supported(path_elems=["buffer_pool", "persistent-watermark"]) is True
     
     def test_commands_in_list(self, converter):
         """Test commands appear in list"""

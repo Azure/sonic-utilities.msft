@@ -35,7 +35,7 @@ class TestUptime:
         """Test basic uptime output"""
         json_data = {"uptime": "up 3 weeks, 4 days, 10 hours, 15 minutes"}
         
-        output = converter.convert(["uptime"], json_data)
+        output = converter.convert(json_data, path_elems=["uptime"])
         
         assert output == "up 3 weeks, 4 days, 10 hours, 15 minutes"
     
@@ -43,7 +43,7 @@ class TestUptime:
         """Test detailed uptime format"""
         json_data = {"uptime": "07:42:51 up 16 days, 14:51,  2 users,  load average: 0.00, 0.00, 0.00"}
         
-        output = converter.convert(["uptime"], json_data)
+        output = converter.convert(json_data, path_elems=["uptime"])
         
         assert "07:42:51 up 16 days" in output
         assert "load average" in output
@@ -52,7 +52,7 @@ class TestUptime:
         """Test empty uptime"""
         json_data = {"uptime": ""}
         
-        output = converter.convert(["uptime"], json_data)
+        output = converter.convert(json_data, path_elems=["uptime"])
         
         assert output == ""
     
@@ -60,13 +60,13 @@ class TestUptime:
         """Test missing uptime key"""
         json_data = {}
         
-        output = converter.convert(["uptime"], json_data)
+        output = converter.convert(json_data, path_elems=["uptime"])
         
         assert output == ""
     
     def test_is_supported(self, converter):
         """Test uptime command is registered"""
-        assert converter.is_supported(["uptime"]) is True
+        assert converter.is_supported(path_elems=["uptime"]) is True
     
     def test_command_in_list(self, converter):
         """Test uptime appears in command list"""

@@ -15,9 +15,9 @@ _REGISTRY: Dict[str, 'CommandEntry'] = {}
 @dataclass
 class CommandEntry:
     """Command registry entry"""
-    path_pattern: List[str]                        # Registration pattern: ["interfaces", "errors", "*"]
-    render_func: Callable[[Any, List[str]], str]   # Render function (unified signature)
-    command: str                                   # "show interfaces errors <interface>"
+    path_pattern: List[str]                                      # Registration pattern: ["interfaces", "errors", "*"]
+    render_func: Callable[[Any, List[str], Dict[str, Any]], str]  # Render function (unified signature with options)
+    command: str                                                  # "show interfaces errors <interface>"
 
 
 def register(path_pattern: List[str]):
@@ -25,18 +25,19 @@ def register(path_pattern: List[str]):
     Decorator: Register render function.
     
     All render functions use a unified signature:
-        def render_func(json_data: Any, path_elems: List[str]) -> str
+        def render_func(json_data: Any, path_elems: List[str], options: Dict[str, Any]) -> str
     
     Usage:
-        # Command without parameters (path_elems can be ignored)
+        # Command without parameters (path_elems and options can be ignored)
         @register(["buffer_pool", "watermark"])
-        def render_buffer_pool_watermark(json_data, path_elems):
+        def render_buffer_pool_watermark(json_data, path_elems, options):
             ...
         
         # Command with parameters (use * to indicate parameter position)
         @register(["interfaces", "errors", "*"])
-        def render_interfaces_errors(json_data, path_elems):
+        def render_interfaces_errors(json_data, path_elems, options):
             interface = path_elems[2]  # Extract parameter
+            is_printall = options.get("printall", False)
             ...
     
     Args:
@@ -62,7 +63,7 @@ def register(path_pattern: List[str]):
     return decorator
 
 
-def get_renderer(path_elems: List[str]) -> Callable[[Any, List[str]], str]:
+def get_renderer(path_elems: List[str]) -> Callable[[Any, List[str], Dict[str, Any]], str]:
     """
     Find render function.
     
@@ -70,7 +71,7 @@ def get_renderer(path_elems: List[str]) -> Callable[[Any, List[str]], str]:
         path_elems: Full path, e.g. ["interfaces", "errors", "Ethernet0"]
     
     Returns:
-        Render function (unified signature)
+        Render function with signature: (json_data, path_elems, options) -> str
     
     Raises:
         PathNotFoundError: If path is not registered
