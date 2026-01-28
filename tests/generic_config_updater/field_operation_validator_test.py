@@ -182,6 +182,44 @@ class TestValidateFieldOperation:
         target_config = {"PFC_WD": {"GLOBAL": {}}}
         config_wrapper = gu_common.ConfigWrapper()
         pytest.raises(gu_common.IllegalPatchOperationError, config_wrapper.validate_field_operation, old_config, target_config)
+    
+    @patch("sonic_py_common.device_info.get_sonic_version_info",
+           mock.Mock(return_value={"build_version": "20241211.49"}))
+    @patch("generic_config_updater.field_operation_validators.get_asic_name",
+           mock.Mock(return_value="spc1"))
+    @patch("os.path.exists", mock.Mock(return_value=True))
+    @patch(
+        "builtins.open",
+        mock_open(
+            read_data=(
+                '{"tables": {"BUFFER_POOL": {'
+                '"field_operation_validators": ['
+                '"generic_config_updater.field_operation_validators.rdma_config_update_validator"'
+                '], "validator_data": {"rdma_config_update_validator": {"Blocked ops": '
+                '{"fields": ["ingress_lossless_pool/xoff", '
+                '"ingress_lossless_pool/size", "egress_lossy_pool/size"], '
+                '"operations": [], "platforms": {"spc1": "20181100"}}}}}}}'
+            )
+        )
+    )
+    def test_validate_field_operation_illegal__buffer_pool(self):
+        old_config = {
+            "BUFFER_POOL": {
+                "ingress_lossless_pool": {"xoff": "1000"}
+            }
+        }
+        target_config = {
+            "BUFFER_POOL": {
+                "ingress_lossless_pool": {"xoff": "2000"}
+            }
+        }
+        config_wrapper = gu_common.ConfigWrapper()
+        pytest.raises(
+            gu_common.IllegalPatchOperationError,
+            config_wrapper.validate_field_operation,
+            old_config,
+            target_config
+        )
 
     def test_validate_field_operation_legal__rm_loopback1(self):
         old_config = {
