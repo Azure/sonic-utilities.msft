@@ -1,0 +1,14 @@
+﻿{
+  "Vlan1": {
+    "dhcp_helper_addresses": ["192.0.0.1"],
+    "ip_address": ["192.168.0.1/21"],
+    "ports": [
+      {
+        "name": "Ethernet120",
+        "port_tagging": "untagged"
+      }
+    ],
+    "proxy_arp": "disabled",
+    "vlan_id": "1"
+  }
+}

@@ -1,0 +1,44 @@
+﻿{
+  "sonic_software_version": "SONiC.test_branch.1-a8fbac59d",
+  "sonic_os_version": "\u003cnil\u003e",
+  "distribution": "Debian 11.4",
+  "kernel": "5.10.0-18-2-amd64",
+  "build_commit": "a8fbac59d",
+  "build_date": "\u003cnil\u003e",
+  "built_by": "\u003cnil\u003e",
+  "platform": "test_onie_platform",
+  "hwsku": "",
+  "asic": "mellanox",
+  "asic_count": "1",
+  "serial_number": "N/A",
+  "model_number": "N/A",
+  "hardware_revision": "N/A",
+  "uptime": "07:42:51 up 16 days, 14:51,  2 users,  load average: 0.00, 0.00, 0.00",
+  "date": "Fri 18 Jul 2025 18:00:00",
+  "docker_images": [
+    {
+        "Repository": "docker-mux",
+        "Tag": "20250510.14",
+        "ID": "sha256:372601148371578e886d545864469deca0ad8db5618e10ae6124429637f86a02",
+        "Size": "366MB"
+    },
+    {
+        "Repository": "docker-mux",
+        "Tag": "latest",
+        "ID": "sha256:372601148371578e886d545864469deca0ad8db5618e10ae6124429637f86a02",
+        "Size": "366MB"
+    },
+    {
+        "Repository": "docker-database",
+        "Tag": "20250510.14",
+        "ID": "sha256:ea4d44010ec1ca9a5129842aebe5a36d177c51a585c4c54e83bd6c4325492af9",
+        "Size": "321MB"
+    },
+    {
+        "Repository": "docker-database",
+        "Tag": "latest",
+        "ID": "sha256:ea4d44010ec1ca9a5129842aebe5a36d177c51a585c4c54e83bd6c4325492af9",
+        "Size": "321MB"
+    }
+  ]
+}
