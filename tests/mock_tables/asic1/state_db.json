@@ -280,5 +280,24 @@
     },
     "PORT_CAPACITY_TABLE|PORT_CAPACITY_DATA" : {
         "capacity": "80000"
+    },
+    "BFD_SESSION_TABLE|default|Ethernet36|10.0.3.1": {
+        "state": "DOWN",
+        "type": "async_active",
+        "local_addr" : "10.0.0.2",
+        "tx_interval" :"150",
+        "rx_interval" : "450",
+        "multiplier" : "3",
+        "multihop": "true",
+        "local_discriminator": "99"
+    },
+    "BFD_SESSION_TABLE|VrfBlue|default|2000::20:1": {
+        "state": "UP",
+        "type": "async_active",
+        "local_addr" : "2000::2",
+        "tx_interval" :"250",
+        "rx_interval" : "750",
+        "multiplier" : "4",
+        "multihop": "false"
     }
 }
