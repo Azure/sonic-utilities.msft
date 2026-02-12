@@ -599,12 +599,14 @@ def check_frr_pending_routes(namespace):
     """
 
     missed_rt = []
+    failed_rt = []
     retries = FRR_CHECK_RETRIES
     for i in range(retries):
         missed_rt = []
+        failed_rt = []
         frr_routes = get_frr_routes(namespace)
 
-        for _, entries in frr_routes.items():
+        for route_prefix, entries in frr_routes.items():
             for entry in entries:
                 if entry['protocol'] in ('connected', 'kernel', 'static'):
                     continue
@@ -621,12 +623,16 @@ def check_frr_pending_routes(namespace):
                 if not entry.get('offloaded', False):
                     missed_rt.append(entry)
 
-        if not missed_rt:
+                if entry.get('failed', False):
+                    failed_rt.append(route_prefix)
+
+        if not missed_rt and not failed_rt:
             break
 
         time.sleep(FRR_WAIT_TIME)
-    print_message(syslog.LOG_DEBUG, "FRR missed routes: {}".format(missed_rt, indent=4))
-    return missed_rt
+    print_message(syslog.LOG_DEBUG, "FRR missed routes: {}".format(json.dumps(missed_rt, indent=4)))
+    print_message(syslog.LOG_DEBUG, "FRR failed routes: {}".format(json.dumps(failed_rt, indent=4)))
+    return missed_rt, failed_rt
 
 
 def mitigate_installed_not_offloaded_frr_routes(namespace, missed_frr_rt, rt_appl):
@@ -769,6 +775,7 @@ def check_routes(namespace):
         rt_appl_miss = []
         rt_asic_miss = []
         rt_frr_miss = []
+        rt_frr_failed = []
         adds[namespace] = []
         deletes[namespace] = []
 
@@ -826,12 +833,17 @@ def check_routes(namespace):
                 results[namespace] = {}
             results[namespace]["Unaccounted_ROUTE_ENTRY_TABLE_entries"] = rt_asic_miss
 
-        rt_frr_miss = check_frr_pending_routes(namespace)
+        rt_frr_miss, rt_frr_failed = check_frr_pending_routes(namespace)
 
         if rt_frr_miss:
             if namespace not in results:
                 results[namespace] = {}
             results[namespace]["missed_FRR_routes"] = rt_frr_miss
+
+        if rt_frr_failed:
+            if namespace not in results:
+                results[namespace] = {}
+            results[namespace]["failed_FRR_routes"] = rt_frr_failed
 
         if results:
             if rt_frr_miss and not rt_appl_miss and not rt_asic_miss:
@@ -839,6 +851,9 @@ def check_routes(namespace):
                               but all routes in APPL_DB and ASIC_DB are in sync".format(namespace))
                 if is_suppress_fib_pending_enabled(namespace):
                     mitigate_installed_not_offloaded_frr_routes(namespace, rt_frr_miss, rt_appl)
+            if rt_frr_failed:
+                print_message(syslog.LOG_ERR, "Some routes have failed state in FRR {} \
+                              : {}".format(namespace, rt_frr_failed))
 
     if results:
         print_message(syslog.LOG_WARNING, "Failure results: {",  json.dumps(results, indent=4), "}")
