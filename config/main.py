@@ -2244,8 +2244,11 @@ def generate_sysinfo(cur_config, config_input, ns=None):
     if not platform:
         platform = device_info.get_platform()
 
-    device_metadata['localhost']['mac'] = mac
-    device_metadata['localhost']['platform'] = platform
+    # Only backfill sysinfo fields if not explicitly provided in golden config
+    if 'mac' not in device_metadata['localhost']:
+        device_metadata['localhost']['mac'] = mac
+    if 'platform' not in device_metadata['localhost']:
+        device_metadata['localhost']['platform'] = platform
 
     return
 
