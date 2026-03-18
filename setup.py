@@ -254,7 +254,7 @@ setup(
         'responses',
         'pytest',
         'mockredispy>=2.9.3',
-        'deepdiff==5.2.3'
+        'deepdiff==8.6.2'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
