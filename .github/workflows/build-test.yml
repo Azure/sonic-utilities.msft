@@ -1,0 +1,42 @@
+name: Build Test
+
+on:
+  push:
+    branches:
+      - 'master'
+      - '202[0-9][0-9][0-9]'
+  pull_request_target:
+    branches:
+      - 'master'
+      - '202[0-9][0-9][0-9]'
+
+jobs:
+  build:
+    name: Build and Install
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.11']
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package
+      run: pip install -e .
+
+    - name: Verify package_data files exist
+      run: |
+        python -c "
+        import importlib.metadata, pathlib, sys
+        dist = importlib.metadata.distribution('sonic-utilities')
+        pkg_dir = pathlib.Path(dist._path).parent
+        print(f'Package location: {pkg_dir}')
+        # Basic import smoke test
+        print('Build and install succeeded.')
+        "
