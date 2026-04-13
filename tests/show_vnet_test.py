@@ -227,6 +227,21 @@ Vnet_mac_vni_scale  10.0.0.0/24  10.0.0.1,10.0.0.2  aa:bb:cc:00:00:01,aa:bb:cc:0
 """
         assert result.output == expected_output
 
+    def test_show_vnet_routes_tunnel_mac_vni_list(self):
+        runner = CliRunner()
+        db = Db()
+        result = runner.invoke(show.cli.commands['vnet'].commands['routes'].commands['tunnel'],
+                               ['Vnet_mac_vni_scale'], obj=db)
+        assert result.exit_code == 0
+        expected_output = """\
+vnet name           prefix       endpoint           mac address                          vni      metric    status
+------------------  -----------  -----------------  -----------------------------------  -------  --------  --------
+Vnet_mac_vni_scale  10.0.0.0/24  10.0.0.1,10.0.0.2  aa:bb:cc:00:00:01,aa:bb:cc:00:00:02  100,200            active
+                                 10.0.0.3,10.0.0.4  aa:bb:cc:00:00:03,aa:bb:cc:00:00:04  300,400
+                                 10.0.0.5,10.0.0.6  aa:bb:cc:00:00:05,aa:bb:cc:00:00:06  500,600
+"""
+        assert result.output == expected_output
+
 class TestShowVnetAdvertisedRoutesIPX(object):
     @classmethod
     def setup_class(cls):
