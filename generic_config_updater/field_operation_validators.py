@@ -62,11 +62,13 @@ def get_asic_name():
     return asic
 
 
-def buffer_profile_config_update_validator(patch_element):
+def buffer_profile_config_update_validator(scope, patch_element):
     """
     Enhanced buffer profile validator that handles both field-level and object-level operations.
     - Field-level operations (e.g., /BUFFER_PROFILE/profile/dynamic_th) follow existing rules
     - Object-level operations (e.g., /BUFFER_PROFILE/profile) allow remove operations
+
+    scope: same as other GCU validators (e.g. localhost, asic0); forwarded to rdma_config_update_validator.
     """
     path = patch_element["path"]
     path_parts = jsonpointer.JsonPointer(path).parts
@@ -87,7 +89,7 @@ def buffer_profile_config_update_validator(patch_element):
             return False  # Disallow unsupported operations
 
     # For field-level operations, use the existing validation logic
-    return rdma_config_update_validator(patch_element)
+    return rdma_config_update_validator(scope, patch_element)
 
 
 def rdma_config_update_validator(scope, patch_element):

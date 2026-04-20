@@ -379,7 +379,7 @@ class TestGetAsicName(unittest.TestCase):
         }
 
         # Object-level remove should be allowed without ASIC/version validation
-        assert fov.buffer_profile_config_update_validator(patch_element) is True
+        assert fov.buffer_profile_config_update_validator("localhost", patch_element) is True
 
     def test_buffer_profile_config_update_validator_object_level_add(self):
         """Test that object-level add operations are allowed"""
@@ -390,7 +390,7 @@ class TestGetAsicName(unittest.TestCase):
         }
 
         # Object-level add should be allowed
-        assert fov.buffer_profile_config_update_validator(patch_element) is True
+        assert fov.buffer_profile_config_update_validator("localhost", patch_element) is True
 
     def test_buffer_profile_config_update_validator_object_level_unsupported_op(self):
         """Test that unsupported operations on object-level are denied"""
@@ -400,7 +400,7 @@ class TestGetAsicName(unittest.TestCase):
             "from": "/BUFFER_PROFILE/old_profile"
         }
 
-        assert fov.buffer_profile_config_update_validator(patch_element) is False
+        assert fov.buffer_profile_config_update_validator("localhost", patch_element) is False
 
     def test_buffer_profile_config_update_validator_field_level_uses_existing_validation(self):
         """Test that field-level operations use existing validation logic"""
@@ -413,4 +413,4 @@ class TestGetAsicName(unittest.TestCase):
         # Mock the existing validation to return True
         with patch("generic_config_updater.field_operation_validators.rdma_config_update_validator",
                    return_value=True):
-            assert fov.buffer_profile_config_update_validator(patch_element) is True
+            assert fov.buffer_profile_config_update_validator("localhost", patch_element) is True
