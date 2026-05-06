@@ -55,6 +55,119 @@ class TestShowVnetRoutesAll(object):
             ['Vnet_v6_in_v6-0', 'fddd:a156:a251::a6:1/128', '192.168.1.1', '', '', '0', 'active']]
         assert table == expected_output
 
+        # same endpoint, per-endpoint MACs and VNIs are wrapped in sync with endpoints
+        table = []
+        row = ["TestVnet", "10.0.0.1/32"]
+        epval = "1.1.1.1,1.1.1.1,1.1.1.1,1.1.1.1"
+        mac_addr = "aa:bb:cc:00:00:01,aa:bb:cc:00:00:02,aa:bb:cc:00:00:03,aa:bb:cc:00:00:04"
+        vni = "100,200,300,400"
+        metric = ""
+        # MAC items are 17 chars > 15, so row_width=2
+        vnet.pretty_print(table, row, epval, mac_addr, vni, metric, state)
+        expected_output = [
+            ["TestVnet", "10.0.0.1/32", "1.1.1.1,1.1.1.1", "aa:bb:cc:00:00:01,aa:bb:cc:00:00:02", "100,200", "", "active"],
+            ["",         "",            "1.1.1.1,1.1.1.1", "aa:bb:cc:00:00:03,aa:bb:cc:00:00:04", "300,400", "", ""],
+        ]
+        assert table == expected_output
+
+        # row_width decided by MAC item length, not just endpoint length
+        table = []
+        row = ["TestVnet", "10.0.0.1/32"]
+        epval = "1.1.1.1,2.2.2.2,3.3.3.3"
+        mac_addr = "aa:bb:cc:00:00:01,aa:bb:cc:00:00:02,aa:bb:cc:00:00:03"
+        vni = "100,200,300"
+        metric = "5"
+        # All endpoints are <=7 chars, MAC items are 17 chars > 15 → row_width=2
+        vnet.pretty_print(table, row, epval, mac_addr, vni, metric, state)
+        expected_output = [
+            ["TestVnet", "10.0.0.1/32", "1.1.1.1,2.2.2.2", "aa:bb:cc:00:00:01,aa:bb:cc:00:00:02", "100,200", "5",  "active"],
+            ["",         "",            "3.3.3.3",          "aa:bb:cc:00:00:03",                   "300",     "",   ""],
+        ]
+        assert table == expected_output
+
+    @pytest.mark.parametrize("N,vnet_name,prefix,metric", [
+        (511,  "Vnet_scale_511",  "10.0.0.0/9", "5"),   # current production scale (odd → last row is a singleton)
+        (2048, "Vnet_scale_2048", "10.0.0.0/8", "10"),  # target maximum scale (even → all rows are pairs)
+    ])
+    def test_pretty_print_scale(self, N, vnet_name, prefix, metric):
+        """Scale test for pretty_print at 511 (current production) and 2048 (target max) endpoints.
+
+        Endpoints are generated as 10.{i>>8}.{i&0xff}.1, MACs as aa:bb:cc:00:{i>>8}:{i&0xff},
+        and VNIs as sequential integers — all unique, no DB required, runs in well under 1 ms.
+        """
+        endpoints_list = [f"10.{(i >> 8) & 0xff}.{i & 0xff}.1" for i in range(N)]
+        macs_list      = [f"aa:bb:cc:{(i >> 16) & 0xff:02x}:{(i >> 8) & 0xff:02x}:{i & 0xff:02x}" for i in range(N)]
+        vnis_list      = [str(i + 1) for i in range(N)]
+
+        table = []
+        row = [vnet_name, prefix]
+        vnet.pretty_print(table, row,
+                          ",".join(endpoints_list),
+                          ",".join(macs_list),
+                          ",".join(vnis_list),
+                          metric, "active")
+
+        expected_rows = (N + 1) // 2  # ceil(N/2) — works for both odd and even
+        assert len(table) == expected_rows
+
+        # First row carries vnet name, prefix, metric, and state
+        assert table[0][0] == vnet_name
+        assert table[0][1] == prefix
+        assert table[0][2] == f"{endpoints_list[0]},{endpoints_list[1]}"
+        assert table[0][3] == f"{macs_list[0]},{macs_list[1]}"
+        assert table[0][4] == f"{vnis_list[0]},{vnis_list[1]}"
+        assert table[0][5] == metric
+        assert table[0][6] == "active"
+
+        # All subsequent rows have empty name, prefix, metric, and state
+        for r in table[1:]:
+            assert r[0] == "" and r[1] == "" and r[5] == "" and r[6] == ""
+
+        # Round-trip: no data loss and endpoints/MACs/VNIs stay aligned across all rows
+        assert ",".join(r[2] for r in table) == ",".join(endpoints_list)
+        assert ",".join(r[3] for r in table) == ",".join(macs_list)
+        assert ",".join(r[4] for r in table) == ",".join(vnis_list)
+
+    def test_pretty_print_local(self):
+        # Single nexthop, no wrapping
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "192.168.1.1", "Ethernet1")
+        assert table == [["TestVnet", "10.0.0.0/24", "192.168.1.1", "Ethernet1"]]
+
+        # 3 short nexthops, row_width=3, all fit on one row
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3")
+        assert table == [["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"]]
+
+        # Spaces in DB values are stripped
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1, 2.2.2.2, 3.3.3.3", "Eth1, Eth2, Eth3")
+        assert table == [["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"]]
+
+        # 5 short nexthops — wraps into 2 rows (3+2)
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5",
+                                "Eth1,Eth2,Eth3,Eth4,Eth5")
+        assert table == [
+            ["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"],
+            ["",         "",            "4.4.4.4,5.5.5.5",          "Eth4,Eth5"],
+        ]
+
+        # Long interface names (>15 chars) → row_width=2
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row,
+                                "10.33.254.1,10.33.254.3,10.33.254.5",
+                                "PortChannel1031.106,PortChannel1032.106,PortChannel1033.106")
+        assert table == [
+            ["TestVnet", "10.0.0.0/24", "10.33.254.1,10.33.254.3",   "PortChannel1031.106,PortChannel1032.106"],
+            ["",         "",            "10.33.254.5",                "PortChannel1033.106"],
+        ]
+
     def test_show_vnet_routes_all_basic(self):
         runner = CliRunner()
         db = Db()
@@ -62,12 +175,17 @@ class TestShowVnetRoutesAll(object):
         result = runner.invoke(show.cli.commands['vnet'].commands['routes'].commands['all'], [], obj=db)
         assert result.exit_code == 0
         expected_output = """\
-vnet name        prefix            nexthop                                interface
----------------  ----------------  -------------------------------------  -------------------------------
-test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                            Ethernet1
-test_v4_in_v4-0  160.163.191.1/32  100.101.4.1, 100.101.4.2               Ethernet1, Ethernet2
-test_v4_in_v4-0  160.164.191.1/32  100.102.4.1, 100.102.4.2, 100.102.4.3  Ethernet1, Ethernet2, Ethernet3
-test_v4_in_v4-1  160.165.191.1/32  100.103.4.1, 100.103.4.2, 100.103.4.3  Ethernet1, Ethernet2, Ethernet3
+vnet name        prefix            nexthop                                 interface
+---------------  ----------------  --------------------------------------  --------------------------------
+Vnet_7959668     10.32.0.0/17      10.33.254.1,10.33.254.3,10.33.254.5     Po1031.106,Po1032.106,Po1033.106
+                                   10.33.254.7,10.33.254.9,10.33.254.11    Po1034.106,Po1035.106,Po1036.106
+                                   10.33.254.13,10.33.254.15,10.33.254.17  Po1037.106,Po1038.106,Po1039.106
+                                   10.33.254.19,10.33.254.23,10.33.254.25  Po1040.106,Po1042.106,Po1043.106
+                                   10.33.254.27,10.33.254.29,10.33.254.31  Po1044.106,Po1045.106,Po1046.106
+test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                             Ethernet1
+test_v4_in_v4-0  160.163.191.1/32  100.101.4.1,100.101.4.2                 Ethernet1,Ethernet2
+test_v4_in_v4-0  160.164.191.1/32  100.102.4.1,100.102.4.2,100.102.4.3     Ethernet1,Ethernet2,Ethernet3
+test_v4_in_v4-1  160.165.191.1/32  100.103.4.1,100.103.4.2,100.103.4.3     Ethernet1,Ethernet2,Ethernet3
 
 vnet name        prefix                    endpoint                                     mac address    vni    metric    status
 ---------------  ------------------------  -------------------------------------------  -------------  -----  --------  --------
@@ -87,11 +205,11 @@ test_v4_in_v4-0  160.164.191.1/32          100.251.7.1
                                ['test_v4_in_v4-0'], obj=db)
         assert result.exit_code == 0
         expected_output = """\
-vnet name        prefix            nexthop                                interface
----------------  ----------------  -------------------------------------  -------------------------------
-test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                            Ethernet1
-test_v4_in_v4-0  160.163.191.1/32  100.101.4.1, 100.101.4.2               Ethernet1, Ethernet2
-test_v4_in_v4-0  160.164.191.1/32  100.102.4.1, 100.102.4.2, 100.102.4.3  Ethernet1, Ethernet2, Ethernet3
+vnet name        prefix            nexthop                              interface
+---------------  ----------------  -----------------------------------  -----------------------------
+test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                          Ethernet1
+test_v4_in_v4-0  160.163.191.1/32  100.101.4.1,100.101.4.2              Ethernet1,Ethernet2
+test_v4_in_v4-0  160.164.191.1/32  100.102.4.1,100.102.4.2,100.102.4.3  Ethernet1,Ethernet2,Ethernet3
 
 vnet name        prefix            endpoint     mac address    vni      metric  status
 ---------------  ----------------  -----------  -------------  -----  --------  --------
@@ -141,12 +259,17 @@ test_v4_in_v4-0  160.164.191.1/32  100.251.7.1
         result = runner.invoke(show.cli.commands['vnet'].commands['routes'].commands['local'], [], obj=db)
         assert result.exit_code == 0
         expected_output = """\
-vnet name        prefix            nexthop                                interface
----------------  ----------------  -------------------------------------  -------------------------------
-test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                            Ethernet1
-test_v4_in_v4-0  160.163.191.1/32  100.101.4.1, 100.101.4.2               Ethernet1, Ethernet2
-test_v4_in_v4-0  160.164.191.1/32  100.102.4.1, 100.102.4.2, 100.102.4.3  Ethernet1, Ethernet2, Ethernet3
-test_v4_in_v4-1  160.165.191.1/32  100.103.4.1, 100.103.4.2, 100.103.4.3  Ethernet1, Ethernet2, Ethernet3
+vnet name        prefix            nexthop                                 interface
+---------------  ----------------  --------------------------------------  --------------------------------
+Vnet_7959668     10.32.0.0/17      10.33.254.1,10.33.254.3,10.33.254.5     Po1031.106,Po1032.106,Po1033.106
+                                   10.33.254.7,10.33.254.9,10.33.254.11    Po1034.106,Po1035.106,Po1036.106
+                                   10.33.254.13,10.33.254.15,10.33.254.17  Po1037.106,Po1038.106,Po1039.106
+                                   10.33.254.19,10.33.254.23,10.33.254.25  Po1040.106,Po1042.106,Po1043.106
+                                   10.33.254.27,10.33.254.29,10.33.254.31  Po1044.106,Po1045.106,Po1046.106
+test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                             Ethernet1
+test_v4_in_v4-0  160.163.191.1/32  100.101.4.1,100.101.4.2                 Ethernet1,Ethernet2
+test_v4_in_v4-0  160.164.191.1/32  100.102.4.1,100.102.4.2,100.102.4.3     Ethernet1,Ethernet2,Ethernet3
+test_v4_in_v4-1  160.165.191.1/32  100.103.4.1,100.103.4.2,100.103.4.3     Ethernet1,Ethernet2,Ethernet3
 """
         assert result.output == expected_output
 
@@ -158,11 +281,11 @@ test_v4_in_v4-1  160.165.191.1/32  100.103.4.1, 100.103.4.2, 100.103.4.3  Ethern
                                ['test_v4_in_v4-0'], obj=db)
         assert result.exit_code == 0
         expected_output = """\
-vnet name        prefix            nexthop                                interface
----------------  ----------------  -------------------------------------  -------------------------------
-test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                            Ethernet1
-test_v4_in_v4-0  160.163.191.1/32  100.101.4.1, 100.101.4.2               Ethernet1, Ethernet2
-test_v4_in_v4-0  160.164.191.1/32  100.102.4.1, 100.102.4.2, 100.102.4.3  Ethernet1, Ethernet2, Ethernet3
+vnet name        prefix            nexthop                              interface
+---------------  ----------------  -----------------------------------  -----------------------------
+test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                          Ethernet1
+test_v4_in_v4-0  160.163.191.1/32  100.101.4.1,100.101.4.2              Ethernet1,Ethernet2
+test_v4_in_v4-0  160.164.191.1/32  100.102.4.1,100.102.4.2,100.102.4.3  Ethernet1,Ethernet2,Ethernet3
 """
         assert result.output == expected_output
 
