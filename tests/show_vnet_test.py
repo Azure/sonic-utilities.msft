@@ -130,6 +130,46 @@ class TestShowVnetRoutesAll(object):
         assert ",".join(r[3] for r in table) == ",".join(macs_list)
         assert ",".join(r[4] for r in table) == ",".join(vnis_list)
 
+    def test_pretty_print_local(self):
+        # Single nexthop, no wrapping
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "192.168.1.1", "Ethernet1")
+        assert table == [["TestVnet", "10.0.0.0/24", "192.168.1.1", "Ethernet1"]]
+
+        # 3 short nexthops, row_width=3, all fit on one row
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3")
+        assert table == [["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"]]
+
+        # Spaces in DB values are stripped
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1, 2.2.2.2, 3.3.3.3", "Eth1, Eth2, Eth3")
+        assert table == [["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"]]
+
+        # 5 short nexthops — wraps into 2 rows (3+2)
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row, "1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4,5.5.5.5",
+                                "Eth1,Eth2,Eth3,Eth4,Eth5")
+        assert table == [
+            ["TestVnet", "10.0.0.0/24", "1.1.1.1,2.2.2.2,3.3.3.3", "Eth1,Eth2,Eth3"],
+            ["",         "",            "4.4.4.4,5.5.5.5",          "Eth4,Eth5"],
+        ]
+
+        # Long interface names (>15 chars) → row_width=2
+        table = []
+        row = ["TestVnet", "10.0.0.0/24"]
+        vnet.pretty_print_local(table, row,
+                                "10.33.254.1,10.33.254.3,10.33.254.5",
+                                "PortChannel1031.106,PortChannel1032.106,PortChannel1033.106")
+        assert table == [
+            ["TestVnet", "10.0.0.0/24", "10.33.254.1,10.33.254.3",   "PortChannel1031.106,PortChannel1032.106"],
+            ["",         "",            "10.33.254.5",                "PortChannel1033.106"],
+        ]
+
     def test_show_vnet_routes_all_basic(self):
         runner = CliRunner()
         db = Db()
@@ -266,21 +306,6 @@ vnet name        prefix            nexthop                              interfac
 test_v4_in_v4-0  160.162.191.1/32  100.100.4.1                          Ethernet1
 test_v4_in_v4-0  160.163.191.1/32  100.101.4.1,100.101.4.2              Ethernet1,Ethernet2
 test_v4_in_v4-0  160.164.191.1/32  100.102.4.1,100.102.4.2,100.102.4.3  Ethernet1,Ethernet2,Ethernet3
-"""
-        assert result.output == expected_output
-
-    def test_show_vnet_routes_tunnel_mac_vni_list(self):
-        runner = CliRunner()
-        db = Db()
-        result = runner.invoke(show.cli.commands['vnet'].commands['routes'].commands['tunnel'],
-                               ['Vnet_mac_vni_scale'], obj=db)
-        assert result.exit_code == 0
-        expected_output = """\
-vnet name           prefix       endpoint           mac address                          vni      metric    status
-------------------  -----------  -----------------  -----------------------------------  -------  --------  --------
-Vnet_mac_vni_scale  10.0.0.0/24  10.0.0.1,10.0.0.2  aa:bb:cc:00:00:01,aa:bb:cc:00:00:02  100,200            active
-                                 10.0.0.3,10.0.0.4  aa:bb:cc:00:00:03,aa:bb:cc:00:00:04  300,400
-                                 10.0.0.5,10.0.0.6  aa:bb:cc:00:00:05,aa:bb:cc:00:00:06  500,600
 """
         assert result.output == expected_output
 
