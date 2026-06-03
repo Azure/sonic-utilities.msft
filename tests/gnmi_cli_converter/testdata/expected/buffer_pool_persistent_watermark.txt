@@ -1,0 +1,5 @@
+Shared pool maximum occupancy:
+                 Pool    Bytes
+---------------------  -------
+ egress_lossless_pool    11111
+ingress_lossless_pool    22222
