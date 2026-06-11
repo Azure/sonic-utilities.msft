@@ -277,6 +277,7 @@ class ServiceCreator:
         render_ctx = {
             'docker_container_name': name,
             'docker_image_id': image_id,
+            'docker_image_name': package.entry.repository,
             'docker_image_run_opt': run_opt,
         }
         render_template(script_template, script_path, render_ctx, executable=True)
