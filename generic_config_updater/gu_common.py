@@ -198,8 +198,6 @@ class ConfigWrapper:
                 if any(op['op'] == operation and field == op['path'] for op in patch):
                     raise IllegalPatchOperationError("Given patch operation is invalid. Operation: {} is illegal on field: {}".format(operation, field))
 
-        self.illegal_dataacl_check(old_config, target_config)
-
         def _invoke_validating_function(cmd, jsonpatch_element):
             # cmd is in the format as <package/module name>.<method name>
             method_name = cmd.split(".")[-1]

@@ -290,7 +290,6 @@ class TestDryRunChangeApplier(unittest.TestCase):
         change = Mock()
         config_wrapper = Mock()
         applier = generic_config_updater.change_applier.DryRunChangeApplier(config_wrapper)
-        running_config = {}
 
         # Act
         current_config = copy.deepcopy(running_config)
