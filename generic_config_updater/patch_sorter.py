@@ -2252,7 +2252,8 @@ class SortAlgorithmFactory:
                                           BulkKeyLevelMoveGenerator(self.path_addressing),
                                           KeyLevelMoveGenerator(self.path_addressing),
                                           BulkKeyGroupLowLevelMoveGenerator(self.path_addressing),
-                                          BulkLowLevelMoveGenerator(self.path_addressing)]
+                                          BulkLowLevelMoveGenerator(self.path_addressing),
+                                          BulkLeafListMoveGenerator(self.path_addressing)]
         move_extenders = [RequiredValueMoveExtender(self.path_addressing, self.operation_wrapper),
                           UpperLevelMoveExtender(),
                           DeleteInsteadOfReplaceMoveExtender(),

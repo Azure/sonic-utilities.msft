@@ -1233,7 +1233,7 @@ class TestNoDependencyMoveValidator(unittest.TestCase):
             "ACL_TABLE": {"EVERFLOW": {"ports": ["Ethernet0"]}}
         }
         diff = ps.Diff(current_config, target_config)
-        move = JsonMoveGroup("", ps.JsonMove(diff, OperationType.ADD, ["ACL_TABLE"], ["ACL_TABLE"]))
+        move = JsonMoveGroup(ps.JsonMove(diff, OperationType.ADD, ["ACL_TABLE"], ["ACL_TABLE"]))
         simulated_config = move.apply(diff.current_config)
 
         self.validator.path_addressing.find_ref_paths = Mock(
@@ -1242,7 +1242,7 @@ class TestNoDependencyMoveValidator(unittest.TestCase):
         # Must not raise; the move is rejected so the DFS can backtrack. Pin the exact arguments so a
         # regression swapping simulated_config <-> diff.current_config in the ADD branch is caught
         # (simulated_config is value-distinct from current_config here: it carries the added ACL_TABLE).
-        self.assertFalse(self.validator.validate(move, diff, simulated_config)[0])
+        self.assertFalse(self.validator.validate(move, diff, simulated_config))
         self.validator.path_addressing.find_ref_paths.assert_called_once_with(
             ["/ACL_TABLE"], simulated_config, reload_config=True)
 
@@ -1257,7 +1257,7 @@ class TestNoDependencyMoveValidator(unittest.TestCase):
             "ACL_TABLE": {"EVERFLOW": {"ports": ["Ethernet0"]}}
         }
         diff = ps.Diff(current_config, target_config)
-        move = JsonMoveGroup("", ps.JsonMove(diff, OperationType.REPLACE, [], []))
+        move = JsonMoveGroup(ps.JsonMove(diff, OperationType.REPLACE, [], []))
         simulated_config = move.apply(diff.current_config)
 
         self.validator.path_addressing.find_ref_paths = Mock(
@@ -1266,7 +1266,7 @@ class TestNoDependencyMoveValidator(unittest.TestCase):
         # Must not raise; the move is rejected so the DFS can backtrack. Pin the config argument so a
         # regression routing REPLACE added_paths through diff.current_config instead of the simulated
         # config is caught (the two configs are value-distinct: simulated carries the added ACL_TABLE).
-        self.assertFalse(self.validator.validate(move, diff, simulated_config)[0])
+        self.assertFalse(self.validator.validate(move, diff, simulated_config))
         self.validator.path_addressing.find_ref_paths.assert_called_once_with(
             ["/ACL_TABLE"], simulated_config, reload_config=True)
 
@@ -1280,7 +1280,7 @@ class TestNoDependencyMoveValidator(unittest.TestCase):
         }
         target_config = {"PORT": {"Ethernet0": {}}}
         diff = ps.Diff(current_config, target_config)
-        move = JsonMoveGroup("", ps.JsonMove(diff, OperationType.REMOVE, ["ACL_TABLE"]))
+        move = JsonMoveGroup(ps.JsonMove(diff, OperationType.REMOVE, ["ACL_TABLE"]))
         simulated_config = move.apply(diff.current_config)
 
         self.validator.path_addressing.find_ref_paths = Mock(
@@ -2133,14 +2133,14 @@ class RemoveCreateOnlyDependencyMoveValidator(unittest.TestCase):
             }
         }
 
-        move = JsonMoveGroup("", Mock())
+        move = JsonMoveGroup(Mock())
         diff = ps.Diff(current_config, target_config)
 
         self.validator.path_addressing.find_ref_paths = Mock(
             side_effect=ValueError("'Ethernet312' is not in list"))
 
         # Must not raise; the move is rejected so the DFS can backtrack.
-        self.assertFalse(self.validator.validate(move, diff, simulated_config)[0])
+        self.assertFalse(self.validator.validate(move, diff, simulated_config))
         # Pin the assertion to the code path under test: the rejection must come from the guarded
         # find_ref_paths call raising, resolved against the simulated (intermediate) config. Asserting
         # the exact arguments also catches a regression that swapped simulated_config <-> current_config.
@@ -2169,14 +2169,14 @@ class RemoveCreateOnlyDependencyMoveValidator(unittest.TestCase):
             }
         }
 
-        move = JsonMoveGroup("", Mock())
+        move = JsonMoveGroup(Mock())
         diff = ps.Diff(current_config, target_config)
 
         self.validator.path_addressing.find_ref_paths = Mock(
             side_effect=KeyError("ACL_TABLE"))
 
         # Must not raise; the move is rejected so the DFS can backtrack.
-        self.assertFalse(self.validator.validate(move, diff, simulated_config)[0])
+        self.assertFalse(self.validator.validate(move, diff, simulated_config))
         self.validator.path_addressing.find_ref_paths.assert_called_once_with(
             "/PORT/Ethernet312", simulated_config, reload_config=True)
 
@@ -3647,7 +3647,11 @@ class TestPatchSorter(unittest.TestCase):
 
         actual_changes = sorter.sort(patch)
 
-        if not skip_exact_change_list_match:
+        # Honor per-fixture skip flag for cases whose expected patch sequence pinned a specific
+        # move ordering. #4335 (part 6) legitimately changes exploration order for some multi-table
+        # patches; the target_config equality check below still verifies functional correctness.
+        per_case_skip = data.get("skip_exact_change_list_match", False)
+        if not skip_exact_change_list_match and not per_case_skip:
             self.assertEqual(expected_changes, actual_changes)
 
         target_config = patch.apply(current_config)

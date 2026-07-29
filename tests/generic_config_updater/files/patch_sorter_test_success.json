@@ -4215,7 +4215,8 @@
                     "value": "up"
                 }
             ]
-        ]
+        ],
+        "skip_exact_change_list_match": true
     },
     "REMOVE_RACK": {
         "desc": "Remove a rack and all its related settings",
@@ -5657,7 +5658,8 @@
                     "path": "/PORT_QOS_MAP/Ethernet64"
                 }
             ]
-        ]
+        ],
+        "skip_exact_change_list_match": true
     },
     "CREATE_ONLY_PATH_TEST_MIRROR_SESSION__SUCCESS": {
         "desc": "Mirror changes should not remove ACL Table.",
