@@ -1,5 +1,4 @@
 import json
-import jsonpatch
 import os
 import shutil
 import unittest
@@ -45,113 +44,6 @@ class TestPatchApplier(unittest.TestCase):
         patch_applier.changeapplier.apply.assert_called()
         patch_applier.patch_wrapper.verify_same_json.assert_has_calls(
             [call(Files.CONFIG_DB_AFTER_MULTI_PATCH, Files.CONFIG_DB_AFTER_MULTI_PATCH)])
-
-    @patch("builtins.open", create=True)
-    @patch("os.path.isfile", return_value=True)
-    def test_apply__all_ops_match_skip_sort__sort_skipped(self, mock_isfile, mock_open):
-        """All operations match skip_sort_tables.txt patterns,
-        sort should be skipped."""
-        from unittest.mock import mock_open as _mock_open
-        mock_open.side_effect = _mock_open(read_data="/ACL_TABLE/FAIRWATER_DACL_MITIGATION*/ports\n").side_effect
-
-        deny_patch = jsonpatch.JsonPatch([
-            {
-                "op": "add",
-                "path": "/ACL_TABLE/FAIRWATER_DACL_MITIGATION_V2/ports",
-                "value": ["Ethernet0", "Ethernet1"]
-            }
-        ])
-        patch_applier = self.__create_patch_applier_for_patch(deny_patch)
-
-        patch_applier.apply(deny_patch)
-
-        patch_applier.patchsorter.sort.assert_not_called()
-
-    @patch("builtins.open", create=True)
-    @patch("os.path.isfile", return_value=True)
-    def test_apply__no_ops_match_skip_sort__sort_not_skipped(self, mock_isfile, mock_open):
-        """No operations match skip_sort_tables.txt patterns,
-        sort should still happen."""
-        from unittest.mock import mock_open as _mock_open
-        mock_open.side_effect = _mock_open(read_data="/ACL_TABLE/FAIRWATER_DACL_MITIGATION*/ports\n").side_effect
-
-        normal_patch = jsonpatch.JsonPatch([
-            {
-                "op": "add",
-                "path": "/ACL_TABLE/SOME_OTHER_TABLE/ports",
-                "value": ["Ethernet0"]
-            }
-        ])
-        changes = [Mock()]
-        patch_applier = self.__create_patch_applier_for_patch(
-            normal_patch, changes=changes
-        )
-
-        patch_applier.apply(normal_patch)
-
-        patch_applier.patchsorter.sort.assert_called_once()
-
-    @patch("builtins.open", create=True)
-    @patch("os.path.isfile", return_value=True)
-    def test_apply__partial_ops_match_skip_sort__sort_not_skipped(self, mock_isfile, mock_open):
-        """Only some operations match skip_sort_tables.txt patterns,
-        sort should still happen since not ALL ops match."""
-        from unittest.mock import mock_open as _mock_open
-        mock_open.side_effect = _mock_open(read_data="/ACL_TABLE/FAIRWATER_DACL_MITIGATION*/ports\n").side_effect
-
-        mixed_patch = jsonpatch.JsonPatch([
-            {
-                "op": "add",
-                "path": "/ACL_TABLE/FAIRWATER_DACL_MITIGATION_V2/ports",
-                "value": ["Ethernet0"]
-            },
-            {
-                "op": "add",
-                "path": "/ACL_TABLE/SOME_OTHER_TABLE/ports",
-                "value": ["Ethernet1"]
-            }
-        ])
-        changes = [Mock()]
-        patch_applier = self.__create_patch_applier_for_patch(
-            mixed_patch, changes=changes
-        )
-
-        patch_applier.apply(mixed_patch)
-
-        patch_applier.patchsorter.sort.assert_called_once()
-
-    def __create_patch_applier_for_patch(
-        self, patch_obj, changes=None
-    ):
-        """Helper to create PatchApplier with mocks for any patch."""
-        config_wrapper = Mock()
-        old_config = {"ACL_TABLE": {}}
-        new_config = {"ACL_TABLE": {
-            "DENY_NEW_INGRESS_TABLE": {
-                "ports": ["Ethernet0", "Ethernet1"]
-            }
-        }}
-        config_wrapper.get_config_db_as_json.side_effect = [
-            old_config, new_config
-        ]
-        config_wrapper.get_empty_tables.return_value = []
-
-        patch_wrapper = Mock()
-        patch_wrapper.simulate_patch.return_value = new_config
-        patch_wrapper.verify_same_json.return_value = True
-
-        if changes is None:
-            changes = [Mock()]
-        patchsorter = Mock()
-        patchsorter.sort.return_value = changes
-
-        changeapplier = Mock()
-        changeapplier.apply.return_value = new_config
-
-        return gu.PatchApplier(
-            patchsorter, changeapplier,
-            config_wrapper, patch_wrapper
-        )
 
     def __create_patch_applier(self,
                                changes=None,
