@@ -1,4 +1,3 @@
-import fnmatch
 import json
 import jsonpatch
 import jsonpointer
@@ -129,31 +128,6 @@ class PatchApplier:
                                 which is not allowed in ConfigDb. \
                                 Table{'s' if len(empty_tables) != 1 else ''}: {empty_tables_txt}")
         # Generate list of changes to apply
-
-        # Skip sorting for tables listed in skip_sort_tables.txt
-        if sort:
-            skip_sort_tables_file = os.path.join(os.path.dirname(__file__), "skip_sort_tables.txt")
-            skip_sort_tables = []
-            if os.path.isfile(skip_sort_tables_file):
-                with open(skip_sort_tables_file) as f:
-                    skip_sort_tables = [line.strip() for line in f if line.strip()]
-                    self.logger.log_notice(f"{scope}: tables to skip sorting: {skip_sort_tables}")
-            if skip_sort_tables:
-                all_match = True
-                for operation in patch:
-                    op_path = operation.get("path", "")
-                    matched = any(fnmatch.fnmatch(op_path, pattern) for pattern in skip_sort_tables)
-                    if matched:
-                        self.logger.log_notice(
-                            f"{scope}: patch path {op_path} matches skip-sort pattern."
-                        )
-                    else:
-                        all_match = False
-                        break
-                if all_match:
-                    self.logger.log_notice(f"{scope}: all patch operations match skip-sort patterns, skipping sort.")
-                    sort = False
-
         if sort:
             self.logger.log_notice(f"{scope}: sorting patch updates.")
             changes = self.patchsorter.sort(patch)
