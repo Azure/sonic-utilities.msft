@@ -1,11 +1,12 @@
 import json
+import jsonpatch
 import jsonpointer
 import os
 import subprocess
 
 from enum import Enum
 from .gu_common import HOST_NAMESPACE, GenericConfigUpdaterError, EmptyTableError, ConfigWrapper, \
-                    DryRunConfigWrapper, PatchWrapper, genericUpdaterLogging
+                    DryRunConfigWrapper, JsonChange, PatchWrapper, genericUpdaterLogging
 from .patch_sorter import StrictPatchSorter, NonStrictPatchSorter, ConfigSplitter, \
                         TablesWithoutYangConfigSplitter, IgnorePathsFromYangConfigSplitter
 from .change_applier import ChangeApplier, DryRunChangeApplier
@@ -138,9 +139,10 @@ class PatchApplier:
         # Apply changes in order
         self.logger.log_notice(f"{scope}: applying {changes_len} change{'s' if changes_len != 1 else ''} " \
                                f"in order{':' if changes_len > 0 else '.'}")
+        current_config = old_config
         for change in changes:
             self.logger.log_notice(f"  * {change}")
-            self.changeapplier.apply(change)
+            current_config = self.changeapplier.apply(current_config, change)
 
         # Validate config updated successfully
         self.logger.log_notice(f"{scope}: verifying patch updates are reflected on ConfigDB.")
