@@ -58,6 +58,7 @@ setup(
         'crm',
         'debug',
         'generic_config_updater',
+        'gnmi_api_client',
         'dump',
         'dump.plugins',
         'pfcwd',
