@@ -94,7 +94,7 @@ class AclLoader(object):
         "ETHERTYPE_LLDP": 0x88CC,
         "ETHERTYPE_VLAN": 0x8100,
         "ETHERTYPE_ROCE": 0x8915,
-        "ETHERTYPE_ARP": 0x0806,
+        "ETHERTYPE_ARP":  0x0806,
         "ETHERTYPE_IPV4": 0x0800,
         "ETHERTYPE_IPV6": 0x86DD,
         "ETHERTYPE_MPLS": 0x8847
@@ -156,9 +156,9 @@ class AclLoader(object):
 
         namespaces = multi_asic.get_all_namespaces()
         for front_asic_namespaces in namespaces['front_ns']:
-            self.per_npu_configdb[front_asic_namespaces] = ConfigDBConnector(use_unix_socket_path=True, namespace=front_asic_namespaces)
+            self.per_npu_configdb[front_asic_namespaces] = ConfigDBConnector(namespace=front_asic_namespaces)
             self.per_npu_configdb[front_asic_namespaces].connect()
-            self.per_npu_statedb[front_asic_namespaces] = SonicV2Connector(use_unix_socket_path=True, namespace=front_asic_namespaces)
+            self.per_npu_statedb[front_asic_namespaces] = SonicV2Connector(namespace=front_asic_namespaces)
             self.per_npu_statedb[front_asic_namespaces].connect(self.per_npu_statedb[front_asic_namespaces].STATE_DB)
 
         self.read_tables_info()
@@ -173,7 +173,31 @@ class AclLoader(object):
         Read ACL_TABLE table from configuration database
         :return:
         """
-        self.tables_db_info = self.configdb.get_table(self.ACL_TABLE)
+        # get the acl table info from host config_db
+        host_acl_table = self.configdb.get_table(self.ACL_TABLE)
+        # For multi asic get only the control plane acls from the host config_db
+        if self.per_npu_configdb:
+            for table, entry in host_acl_table.items():
+                if entry.get('type', None) != self.ACL_TABLE_TYPE_CTRLPLANE:
+                    continue
+
+                self.tables_db_info[table] = entry
+        else:
+            self.tables_db_info.update(host_acl_table)
+
+        # for DATAACL, EVERFLOW acls.
+        # update the ports from all the namespaces
+        if self.per_npu_configdb:
+            for ns, config_db in self.per_npu_configdb.items():
+                acl_table = config_db.get_table(self.ACL_TABLE)
+                for table, entry in acl_table.items():
+                    if entry.get('type', None) == self.ACL_TABLE_TYPE_CTRLPLANE:
+                        continue
+                    if table not in self.tables_db_info:
+                        self.tables_db_info[table] = entry
+                    else:
+                        self.tables_db_info[table]['ports'] += entry.get(
+                            'ports', [])
 
     def get_tables_db_info(self):
         return self.tables_db_info
@@ -261,7 +285,7 @@ class AclLoader(object):
             else:
                 state_db_info = self.statedb.get_all(self.statedb.STATE_DB, "{}|{}".format(state_db_table_name, state_db_key))
                 status[key]['status'] = state_db_info.get("status", "N/A") if state_db_info else "N/A"
-        
+
         return status
 
     def get_sessions_db_info(self):
@@ -346,6 +370,14 @@ class AclLoader(object):
         """
         return self.tables_db_info[tname]["type"].upper() == "L3V6"
 
+    def is_table_l3v4v6(self, tname):
+        """
+        Check if ACL table type is L3V4V6
+        :param tname: ACL table name
+        :return: True if table type is L3V4V6 else False
+        """
+        return self.tables_db_info[tname]["type"].upper() == "L3V4V6"
+
     def is_table_l3(self, tname):
         """
         Check if ACL table type is L3
@@ -381,7 +413,7 @@ class AclLoader(object):
                 raise AclLoaderException("Invalid input file %s" % filename)
         return yang_acl
 
-    def load_rules_from_file(self, filename):
+    def load_rules_from_file(self, filename, skip_action_validation=False):
         """
         Load file with ACL rules configuration in openconfig ACL format. Convert rules
         to Config DB schema.
@@ -389,9 +421,9 @@ class AclLoader(object):
         :return:
         """
         self.yang_acl = AclLoader.parse_acl_json(filename)
-        self.convert_rules()
+        self.convert_rules(skip_action_validation)
 
-    def convert_action(self, table_name, rule_idx, rule):
+    def convert_action(self, table_name, rule_idx, rule, skip_validation=False):
         rule_props = {}
 
         if rule.actions.config.forwarding_action == "ACCEPT":
@@ -420,13 +452,13 @@ class AclLoader(object):
             raise AclLoaderException("Unknown rule action {} in table {}, rule {}".format(
                 rule.actions.config.forwarding_action, table_name, rule_idx))
 
-        if not self.validate_actions(table_name, rule_props):
+        if not self.validate_actions(table_name, rule_props, skip_validation):
             raise AclLoaderException("Rule action {} is not supported in table {}, rule {}".format(
                 rule.actions.config.forwarding_action, table_name, rule_idx))
 
         return rule_props
 
-    def validate_actions(self, table_name, action_props):
+    def validate_actions(self, table_name, action_props, skip_validation=False):
         if self.is_table_control_plane(table_name):
             return True
 
@@ -449,6 +481,11 @@ class AclLoader(object):
         else:
             aclcapability = self.statedb.get_all(self.statedb.STATE_DB, "{}|{}".format(self.ACL_STAGE_CAPABILITY_TABLE, stage.upper()))
             switchcapability = self.statedb.get_all(self.statedb.STATE_DB, "{}|switch".format(self.SWITCH_CAPABILITY_TABLE))
+        # In the load_minigraph path, it's possible that the STATE_DB entry haven't pop up because orchagent is stopped
+        # before loading acl.json. So we skip the validation if any table is empty
+        if skip_validation and (not aclcapability or not switchcapability):
+            warning("Skipped action validation as capability table is not present in STATE_DB")
+            return True
         for action_key in dict(action_props):
             action_list_key = self.ACL_ACTIONS_CAPABILITY_FIELD
             if action_list_key not in aclcapability:
@@ -509,6 +546,17 @@ class AclLoader(object):
                 # "IP_ICMP" we need to pick the correct protocol number for the IP version
                 if rule.ip.config.protocol == "IP_ICMP" and self.is_table_ipv6(table_name):
                     rule_props["IP_PROTOCOL"] = self.ip_protocol_map["IP_ICMPV6"]
+                elif rule.ip.config.protocol == "IP_ICMP" and  self.is_table_l3v4v6(table_name):
+                    # For L3V4V6 tables, both ICMP and ICMPv6 are supported,
+                    # so find the IP_PROTOCOL using the ether_type.
+                    try:
+                        ether_type = rule.l2.config.ethertype
+                    except Exception as e:
+                        ether_type = None
+                    if rule.l2.config.ethertype == "ETHERTYPE_IPV6":
+                        rule_props["IP_PROTOCOL"] = self.ip_protocol_map["IP_ICMPV6"]
+                    else:
+                        rule_props["IP_PROTOCOL"] = self.ip_protocol_map[rule.ip.config.protocol]
                 else:
                     rule_props["IP_PROTOCOL"] = self.ip_protocol_map[rule.ip.config.protocol]
             else:
@@ -544,9 +592,28 @@ class AclLoader(object):
     def convert_icmp(self, table_name, rule_idx, rule):
         rule_props = {}
 
-        is_table_v6 = self.is_table_ipv6(table_name)
-        type_key = "ICMPV6_TYPE" if is_table_v6 else "ICMP_TYPE"
-        code_key = "ICMPV6_CODE" if is_table_v6 else "ICMP_CODE"
+        is_rule_v6 = False
+        if self.is_table_ipv6(table_name):
+            is_rule_v6 = True
+        elif self.is_table_l3v4v6(table_name):
+            # get the IP version type using Ether-Type.
+            try:
+                ether_type = rule.l2.config.ethertype
+                if ether_type == "ETHERTYPE_IPV6":
+                    is_rule_v6 = True
+            except Exception as e:
+                pass
+        else:
+            # get the IP version type using IP_PROTOCOL.
+            try:
+                ip_protocol = rule.ip.config.protocol
+                if ip_protocol == "IP_ICMPV6" or int(ip_protocol) == self.ip_protocol_map["IP_ICMPV6"]:
+                    is_rule_v6 = True
+            except Exception as e:
+                pass
+
+        type_key = "ICMPV6_TYPE" if is_rule_v6 else "ICMP_TYPE"
+        code_key = "ICMPV6_CODE" if is_rule_v6 else "ICMP_CODE"
 
         if rule.icmp.config.type != "" and rule.icmp.config.type != "null":
             icmp_type = rule.icmp.config.type
@@ -637,7 +704,7 @@ class AclLoader(object):
             if ("ICMPV6_TYPE" in rule_props or "ICMPV6_CODE" in rule_props) and protocol != 58:
                 raise AclLoaderException("IP_PROTOCOL={} is not ICMPV6, but ICMPV6 fields were provided".format(protocol))
 
-    def convert_rule_to_db_schema(self, table_name, rule):
+    def convert_rule_to_db_schema(self, table_name, rule, skip_action_validation=False):
         """
         Convert rules format from openconfig ACL to Config DB schema
         :param table_name: ACL table name to which rule belong
@@ -651,12 +718,23 @@ class AclLoader(object):
         rule_props["PRIORITY"] = str(self.max_priority - rule_idx)
 
         # setup default ip type match to dataplane acl (could be overriden by rule later)
-        if self.is_table_l3v6(table_name):
+        if self.is_table_l3v4v6(table_name):
+            # ETHERTYPE must be passed and it should be one of IPv4 or IPv6
+            try:
+                ether_type =  rule.l2.config.ethertype
+            except Exception as e:
+                raise AclLoaderException("l2:ethertype must be provided for rule #{} in table:{} of type L3V4V6".format(rule_idx, table_name))
+            if ether_type not in ["ETHERTYPE_IPV4", "ETHERTYPE_IPV6"]:
+                # Ether type must be v4 or v6 to match IP fields, L4 (TCP/UDP) fields or ICMP fields
+                if rule.ip or rule.transport:
+                    raise AclLoaderException("ethertype={} is neither ETHERTYPE_IPV4 nor ETHERTYPE_IPV6 for IP rule #{} in table:{} type L3V4V6".format(rule.l2.config.ethertype, rule_idx, table_name))
+            rule_props["ETHER_TYPE"] = str(self.ethertype_map[ether_type])
+        elif self.is_table_l3v6(table_name):
             rule_props["IP_TYPE"] = "IPV6ANY"  # ETHERTYPE is not supported for DATAACLV6
         elif self.is_table_l3(table_name):
             rule_props["ETHER_TYPE"] = str(self.ethertype_map["ETHERTYPE_IPV4"])
 
-        deep_update(rule_props, self.convert_action(table_name, rule_idx, rule))
+        deep_update(rule_props, self.convert_action(table_name, rule_idx, rule, skip_action_validation))
         deep_update(rule_props, self.convert_l2(table_name, rule_idx, rule))
         deep_update(rule_props, self.convert_ip(table_name, rule_idx, rule))
         deep_update(rule_props, self.convert_icmp(table_name, rule_idx, rule))
@@ -682,11 +760,13 @@ class AclLoader(object):
             rule_props["IP_TYPE"] = "IPV6ANY"  # ETHERTYPE is not supported for DATAACLV6
         elif self.is_table_l3(table_name):
             rule_props["ETHER_TYPE"] = str(self.ethertype_map["ETHERTYPE_IPV4"])
+        elif self.is_table_l3v4v6(table_name):
+            rule_props["IP_TYPE"] = "IP" # Drop both v4 and v6 packets
         else:
             return {}  # Don't add default deny rule if table is not [L3, L3V6]
         return rule_data
 
-    def convert_rules(self):
+    def convert_rules(self, skip_aciton_validation=False):
         """
         Convert rules in openconfig ACL format to Config DB schema
         :return:
@@ -705,7 +785,7 @@ class AclLoader(object):
             for acl_entry_name in acl_set.acl_entries.acl_entry:
                 acl_entry = acl_set.acl_entries.acl_entry[acl_entry_name]
                 try:
-                    rule = self.convert_rule_to_db_schema(table_name, acl_entry)
+                    rule = self.convert_rule_to_db_schema(table_name, acl_entry, skip_aciton_validation)
                     deep_update(self.rules_info, rule)
                 except AclLoaderException as ex:
                     error("Error processing rule %s: %s. Skipped." % (acl_entry_name, ex))
@@ -835,7 +915,7 @@ class AclLoader(object):
         for key, val in self.get_tables_db_info().items():
             if table_name and key != table_name:
                 continue
-            
+
             stage = val.get("stage", Stage.INGRESS).lower()
             # Get ACL table status from STATE_DB
             if key in self.acl_table_status:
@@ -1074,8 +1154,9 @@ def update(ctx):
 @click.option('--session_name', type=click.STRING, required=False)
 @click.option('--mirror_stage', type=click.Choice(["ingress", "egress"]), default="ingress")
 @click.option('--max_priority', type=click.INT, required=False)
+@click.option('--skip_action_validation', is_flag=True, default=False, help="Skip action validation")
 @click.pass_context
-def full(ctx, filename, table_name, session_name, mirror_stage, max_priority):
+def full(ctx, filename, table_name, session_name, mirror_stage, max_priority, skip_action_validation):
     """
     Full update of ACL rules configuration.
     If a table_name is provided, the operation will be restricted in the specified table.
@@ -1093,7 +1174,7 @@ def full(ctx, filename, table_name, session_name, mirror_stage, max_priority):
     if max_priority:
         acl_loader.set_max_priority(max_priority)
 
-    acl_loader.load_rules_from_file(filename)
+    acl_loader.load_rules_from_file(filename, skip_action_validation)
     acl_loader.full_update()
 
 

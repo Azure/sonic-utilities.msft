@@ -75,6 +75,7 @@
         "admin_status": "up",
         "members@": "Ethernet0,Ethernet4",
         "min_links": "2",
+        "mode": "trunk",
         "mtu": "9100"
     },
     "PORTCHANNEL|PortChannel4001": {
@@ -247,6 +248,36 @@
         "asn": "65200",
         "keepalive": "3"
     },
+    "BGP_VOQ_CHASSIS_NEIGHBOR|3.3.3.1": {
+        "rrclient": "0",
+        "name": "str2-sonic-lc1-1-ASIC0",
+        "local_addr": "3.3.3.2",
+        "nhopself": "0",
+        "admin_status": "up",
+        "holdtime": "10",
+        "asn": "65200",
+        "keepalive": "3"
+    },
+    "BGP_VOQ_CHASSIS_NEIGHBOR|3.3.3.2": {
+        "rrclient": "0",
+        "name": "str2-sonic-lc2-1-ASIC0",
+        "local_addr": "3.3.3.2",
+        "nhopself": "0",
+        "admin_status": "up",
+        "holdtime": "10",
+        "asn": "65200",
+        "keepalive": "3"
+    },
+    "BGP_VOQ_CHASSIS_NEIGHBOR|3.3.3.8": {
+        "rrclient": "0",
+        "name": "str2-sonic-lc1-1-ASIC1",
+        "local_addr": "3.3.3.9",
+        "nhopself": "0",
+        "admin_status": "up",
+        "holdtime": "10",
+        "asn": "65200",
+        "keepalive": "3"
+    },
     "ACL_RULE|DATAACL_5|RULE_1": {
         "IP_PROTOCOL": "126",
         "PACKET_ACTION": "FORWARD",
@@ -257,5 +288,43 @@
         "ports@": "Ethernet124",
         "type": "L3",
         "stage": "ingress"
+    },
+    "FABRIC_MONITOR|FABRIC_MONITOR_DATA": {
+        "monCapacityThreshWarn": "100",
+        "monErrThreshCrcCells": "1",
+        "monErrThreshRxCells": "61035156",
+        "monPollThreshIsolation": "1",
+        "monPollThreshRecovery": "8"
+    },
+    "SYSLOG_CONFIG_FEATURE|bgp": {
+        "rate_limit_interval": "111",
+        "rate_limit_burst": "33333"
+    },
+    "SYSLOG_CONFIG_FEATURE|database": {
+        "rate_limit_interval": "222",
+        "rate_limit_burst": "22222"
+    },
+    "WRED_PROFILE|AZURE_LOSSLESS": {
+        "red_max_threshold": "2097152",
+        "ecn": "ecn_all",
+        "green_min_threshold": "1048576",
+        "red_min_threshold": "1048576",
+        "yellow_min_threshold": "1048576",
+        "green_max_threshold": "2097152",
+        "green_drop_probability": "5",
+        "yellow_max_threshold": "2097152",
+        "yellow_drop_probability": "5",
+        "red_drop_probability": "5"
+    },
+    "DEVICE_NEIGHBOR|Ethernet4": {
+        "name": "Serverss0",
+        "port": "eth0"
+    },
+    "QUEUE|Ethernet4|0": {
+        "scheduler": "[SCHEDULAR|scheduler.0]"
+    },
+    "QUEUE|Ethernet4|1": {
+        "scheduler": "[SCHEDULAR|scheduler.0]",
+        "wred_profile": "AZURE_LOSSLESS"
     }
 }

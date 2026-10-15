@@ -1,7 +1,6 @@
 import sys
 import syslog
 from unittest.mock import patch
-import pytest
 import subprocess
 
 sys.path.append("scripts")
@@ -27,7 +26,7 @@ test_data = {
         "workdir": "/tmp/tmpy",
         "mounts": "overlay_tmpx blahblah",
         "err": "/tmpx is not read-write|READ-ONLY: Mounted ['/tmpx'] to make Read-Write",
-        "cmds": ['mount -t overlay overlay_tmpx -o lowerdir=/tmpx,upperdir=/tmp/tmpx/tmpx,workdir=/tmp/tmpy/tmpx /tmpx']
+        "cmds": [['mount', '-t', 'overlay', 'overlay_tmpx', '-o', 'lowerdir=/tmpx,upperdir=/tmp/tmpx/tmpx,workdir=/tmp/tmpy/tmpx', '/tmpx']]
     },
     "3": {
         "desc": "Not good as /tmpx is not read-write; mount fail as create of upper fails",
@@ -94,7 +93,7 @@ class proc:
 def mock_subproc_run(cmd, shell, stdout):
     global cmds
 
-    assert shell == True
+    assert shell == False
     assert stdout == subprocess.PIPE
 
     upd = (current_tc["proc"][len(cmds)]
@@ -178,3 +177,7 @@ class TestDiskCheck(object):
             
         assert max_log_lvl == syslog.LOG_ERR
 
+    @classmethod
+    def teardown_class(cls):
+        subprocess.run("rm -rf /tmp/tmp*", shell=True)  # cleanup the temporary dirs
+        print("TEARDOWN")

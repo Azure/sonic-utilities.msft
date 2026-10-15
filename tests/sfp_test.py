@@ -1,8 +1,8 @@
 import sys
 import os
 from click.testing import CliRunner
-
 from .mock_tables import dbconnector
+from unittest.mock import patch, MagicMock
 
 test_path = os.path.dirname(os.path.abspath(__file__))
 modules_path = os.path.dirname(test_path)
@@ -10,6 +10,7 @@ scripts_path = os.path.join(modules_path, "scripts")
 sys.path.insert(0, modules_path)
 
 import show.main as show
+import show as show_module
 
 test_sfp_eeprom_with_dom_output = """\
 Ethernet0: SFP EEPROM detected
@@ -121,6 +122,7 @@ Ethernet8: SFP EEPROM detected
         ModuleMonitorValues:
                 Temperature: 44.9883C
                 Vcc: 3.2999Volts
+                Pre-FEC BER (Current): 1.51E-04
         ModuleThresholdValues:
                 TempHighAlarm  : 80.0000C
                 TempHighWarning: 75.0000C
@@ -130,6 +132,75 @@ Ethernet8: SFP EEPROM detected
                 VccHighWarning : 3.4672Volts
                 VccLowAlarm    : 2.9696Volts
                 VccLowWarning  : 3.1304Volts
+"""
+
+test_osfp_eeprom_with_dom_output = """\
+Ethernet72: SFP EEPROM detected
+        Active Firmware: 0.0
+        Active application selected code assigned to host lane 1: N/A
+        Active application selected code assigned to host lane 2: N/A
+        Active application selected code assigned to host lane 3: N/A
+        Active application selected code assigned to host lane 4: N/A
+        Active application selected code assigned to host lane 5: N/A
+        Active application selected code assigned to host lane 6: N/A
+        Active application selected code assigned to host lane 7: N/A
+        Active application selected code assigned to host lane 8: N/A
+        Application Advertisement: IB NDR - Host Assign (0x11) - Copper cable - Media Assign (Unknown)
+                                   IB SDR (Arch.Spec.Vol.2) - Host Assign (0x11) - Copper cable - Media Assign (Unknown)
+        CMIS Rev: 5.0
+        Connector: No separable connector
+        Encoding: N/A
+        Extended Identifier: Power Class 1 (0.25W Max)
+        Extended RateSelect Compliance: N/A
+        Host Lane Count: 4
+        Identifier: OSFP 8X Pluggable Transceiver
+        Inactive Firmware: N/A
+        Length Cable Assembly(m): 1.0
+        Media Interface Technology: Copper cable unequalized
+        Media Lane Count: 0
+        Module Hardware Rev: 0.0
+        Nominal Bit Rate(100Mbs): 0
+        Specification compliance: passive_copper_media_interface
+        Supported Max Laser Frequency: N/A
+        Supported Max TX Power: N/A
+        Supported Min Laser Frequency: N/A
+        Supported Min TX Power: N/A
+        Vendor Date Code(YYYY-MM-DD Lot): 2022-05-28   
+        Vendor Name: vendor1          
+        Vendor OUI: some-oui
+        Vendor PN: some-model    
+        Vendor Rev: A3
+        Vendor SN: serial1   
+        ChannelMonitorValues:
+                RX1Power: 0.5dBm
+                RX2Power: 0.3dBm
+                RX3Power: 0.1dBm
+                RX4Power: 0.7dBm
+                RX5Power: 0.8dBm
+                RX6Power: 0.2dBm
+                RX7Power: 0.2dBm
+                RX8Power: 0.3dBm
+                TX1Bias: 6.5mA
+                TX1Power: 0.6dBm
+                TX2Bias: 6.5mA
+                TX2Power: 0.4dBm
+                TX3Bias: 6.6mA
+                TX3Power: 0.2dBm
+                TX4Bias: 6.7mA
+                TX4Power: 0.8dBm
+                TX5Bias: 6.4mA
+                TX5Power: 0.9dBm
+                TX6Bias: 6.3mA
+                TX6Power: 0.1dBm
+                TX7Bias: 6.2mA
+                TX7Power: 0.5dBm
+                TX8Bias: 6.1mA
+                TX8Power: 0.4dBm
+        ChannelThresholdValues:
+        ModuleMonitorValues:
+                Temperature: 40.5C
+                Vcc: 3.331Volts
+        ModuleThresholdValues:
 """
 
 test_sfp_eeprom_output = """\
@@ -215,6 +286,305 @@ Ethernet44:
     EVM              %       100.0     100.0     100.0     N/A          N/A          N/A           N/A          N/A          N/A
 """
 
+test_qsfp_status_output = """\
+Ethernet4:
+        Tx fault flag on media lane 1: False
+        Tx fault flag on media lane 2: False
+        Tx fault flag on media lane 3: False
+        Tx fault flag on media lane 4: False
+        Rx loss of signal flag on media lane 1: False
+        Rx loss of signal flag on media lane 2: False
+        Rx loss of signal flag on media lane 3: False
+        Rx loss of signal flag on media lane 4: False
+        TX disable status on lane 1: False
+        TX disable status on lane 2: False
+        TX disable status on lane 3: False
+        TX disable status on lane 4: False
+        Disabled TX channels: 0
+"""
+
+test_qsfp_dd_status_output = """\
+Ethernet44:
+        CMIS State (SW): READY
+        Tx fault flag on media lane 1: False
+        Tx fault flag on media lane 2: False
+        Tx fault flag on media lane 3: False
+        Tx fault flag on media lane 4: False
+        Tx fault flag on media lane 5: False
+        Tx fault flag on media lane 6: False
+        Tx fault flag on media lane 7: False
+        Tx fault flag on media lane 8: False
+        Rx loss of signal flag on media lane 1: False
+        Rx loss of signal flag on media lane 2: False
+        Rx loss of signal flag on media lane 3: False
+        Rx loss of signal flag on media lane 4: False
+        Rx loss of signal flag on media lane 5: False
+        Rx loss of signal flag on media lane 6: False
+        Rx loss of signal flag on media lane 7: False
+        Rx loss of signal flag on media lane 8: False
+        TX disable status on lane 1: False
+        TX disable status on lane 2: False
+        TX disable status on lane 3: False
+        TX disable status on lane 4: False
+        TX disable status on lane 5: False
+        TX disable status on lane 6: False
+        TX disable status on lane 7: False
+        TX disable status on lane 8: False
+        Disabled TX channels: 0
+        Current module state: ModuleReady
+        Reason of entering the module fault state: No Fault detected
+        Datapath firmware fault: False
+        Module firmware fault: False
+        Module state changed: False
+        Data path state indicator on host lane 1: DataPathActivated
+        Data path state indicator on host lane 2: DataPathActivated
+        Data path state indicator on host lane 3: DataPathActivated
+        Data path state indicator on host lane 4: DataPathActivated
+        Data path state indicator on host lane 5: DataPathActivated
+        Data path state indicator on host lane 6: DataPathActivated
+        Data path state indicator on host lane 7: DataPathActivated
+        Data path state indicator on host lane 8: DataPathActivated
+        Tx output status on media lane 1: False
+        Tx output status on media lane 2: False
+        Tx output status on media lane 3: False
+        Tx output status on media lane 4: False
+        Tx output status on media lane 5: False
+        Tx output status on media lane 6: False
+        Tx output status on media lane 7: False
+        Tx output status on media lane 8: False
+        Rx output status on host lane 1: True
+        Rx output status on host lane 2: True
+        Rx output status on host lane 3: True
+        Rx output status on host lane 4: True
+        Rx output status on host lane 5: True
+        Rx output status on host lane 6: True
+        Rx output status on host lane 7: True
+        Rx output status on host lane 8: True
+        Tx loss of signal flag on host lane 1: False
+        Tx loss of signal flag on host lane 2: False
+        Tx loss of signal flag on host lane 3: False
+        Tx loss of signal flag on host lane 4: False
+        Tx loss of signal flag on host lane 5: False
+        Tx loss of signal flag on host lane 6: False
+        Tx loss of signal flag on host lane 7: False
+        Tx loss of signal flag on host lane 8: False
+        Tx clock and data recovery loss of lock on host lane 1: False
+        Tx clock and data recovery loss of lock on host lane 2: False
+        Tx clock and data recovery loss of lock on host lane 3: False
+        Tx clock and data recovery loss of lock on host lane 4: False
+        Tx clock and data recovery loss of lock on host lane 5: False
+        Tx clock and data recovery loss of lock on host lane 6: False
+        Tx clock and data recovery loss of lock on host lane 7: False
+        Tx clock and data recovery loss of lock on host lane 8: False
+        Rx clock and data recovery loss of lock on media lane 1: False
+        Rx clock and data recovery loss of lock on media lane 2: False
+        Rx clock and data recovery loss of lock on media lane 3: False
+        Rx clock and data recovery loss of lock on media lane 4: False
+        Rx clock and data recovery loss of lock on media lane 5: False
+        Rx clock and data recovery loss of lock on media lane 6: False
+        Rx clock and data recovery loss of lock on media lane 7: False
+        Rx clock and data recovery loss of lock on media lane 8: False
+        Configuration status for the data path of host line 1: ConfigSuccess
+        Configuration status for the data path of host line 2: ConfigSuccess
+        Configuration status for the data path of host line 3: ConfigSuccess
+        Configuration status for the data path of host line 4: ConfigSuccess
+        Configuration status for the data path of host line 5: ConfigSuccess
+        Configuration status for the data path of host line 6: ConfigSuccess
+        Configuration status for the data path of host line 7: ConfigSuccess
+        Configuration status for the data path of host line 8: ConfigSuccess
+        Data path configuration updated on host lane 1: False
+        Data path configuration updated on host lane 2: False
+        Data path configuration updated on host lane 3: False
+        Data path configuration updated on host lane 4: False
+        Data path configuration updated on host lane 5: False
+        Data path configuration updated on host lane 6: False
+        Data path configuration updated on host lane 7: False
+        Data path configuration updated on host lane 8: False
+        Temperature high alarm flag: False
+        Temperature high warning flag: False
+        Temperature low warning flag: False
+        Temperature low alarm flag: False
+        Vcc high alarm flag: False
+        Vcc high warning flag: False
+        Vcc low warning flag: False
+        Vcc low alarm flag: False
+        Tx power high alarm flag on lane 1: False
+        Tx power high alarm flag on lane 2: False
+        Tx power high alarm flag on lane 3: False
+        Tx power high alarm flag on lane 4: False
+        Tx power high alarm flag on lane 5: False
+        Tx power high alarm flag on lane 6: False
+        Tx power high alarm flag on lane 7: False
+        Tx power high alarm flag on lane 8: False
+        Tx power high warning flag on lane 1: False
+        Tx power high warning flag on lane 2: False
+        Tx power high warning flag on lane 3: False
+        Tx power high warning flag on lane 4: False
+        Tx power high warning flag on lane 5: False
+        Tx power high warning flag on lane 6: False
+        Tx power high warning flag on lane 7: False
+        Tx power high warning flag on lane 8: False
+        Tx power low warning flag on lane 1: False
+        Tx power low warning flag on lane 2: False
+        Tx power low warning flag on lane 3: False
+        Tx power low warning flag on lane 4: False
+        Tx power low warning flag on lane 5: False
+        Tx power low warning flag on lane 6: False
+        Tx power low warning flag on lane 7: False
+        Tx power low warning flag on lane 8: False
+        Tx power low alarm flag on lane 1: False
+        Tx power low alarm flag on lane 2: False
+        Tx power low alarm flag on lane 3: False
+        Tx power low alarm flag on lane 4: False
+        Tx power low alarm flag on lane 5: False
+        Tx power low alarm flag on lane 6: False
+        Tx power low alarm flag on lane 7: False
+        Tx power low alarm flag on lane 8: False
+        Rx power high alarm flag on lane 1: False
+        Rx power high alarm flag on lane 2: False
+        Rx power high alarm flag on lane 3: False
+        Rx power high alarm flag on lane 4: False
+        Rx power high alarm flag on lane 5: False
+        Rx power high alarm flag on lane 6: False
+        Rx power high alarm flag on lane 7: False
+        Rx power high alarm flag on lane 8: False
+        Rx power high warning flag on lane 1: False
+        Rx power high warning flag on lane 2: False
+        Rx power high warning flag on lane 3: False
+        Rx power high warning flag on lane 4: False
+        Rx power high warning flag on lane 5: False
+        Rx power high warning flag on lane 6: False
+        Rx power high warning flag on lane 7: False
+        Rx power high warning flag on lane 8: False
+        Rx power low warning flag on lane 1: False
+        Rx power low warning flag on lane 2: False
+        Rx power low warning flag on lane 3: False
+        Rx power low warning flag on lane 4: False
+        Rx power low warning flag on lane 5: False
+        Rx power low warning flag on lane 6: False
+        Rx power low warning flag on lane 7: False
+        Rx power low warning flag on lane 8: False
+        Rx power low alarm flag on lane 1: False
+        Rx power low alarm flag on lane 2: False
+        Rx power low alarm flag on lane 3: False
+        Rx power low alarm flag on lane 4: False
+        Rx power low alarm flag on lane 5: False
+        Rx power low alarm flag on lane 6: False
+        Rx power low alarm flag on lane 7: False
+        Rx power low alarm flag on lane 8: False
+        Tx bias high alarm flag on lane 1: False
+        Tx bias high alarm flag on lane 2: False
+        Tx bias high alarm flag on lane 3: False
+        Tx bias high alarm flag on lane 4: False
+        Tx bias high alarm flag on lane 5: False
+        Tx bias high alarm flag on lane 6: False
+        Tx bias high alarm flag on lane 7: False
+        Tx bias high alarm flag on lane 8: False
+        Tx bias high warning flag on lane 1: False
+        Tx bias high warning flag on lane 2: False
+        Tx bias high warning flag on lane 3: False
+        Tx bias high warning flag on lane 4: False
+        Tx bias high warning flag on lane 5: False
+        Tx bias high warning flag on lane 6: False
+        Tx bias high warning flag on lane 7: False
+        Tx bias high warning flag on lane 8: False
+        Tx bias low warning flag on lane 1: False
+        Tx bias low warning flag on lane 2: False
+        Tx bias low warning flag on lane 3: False
+        Tx bias low warning flag on lane 4: False
+        Tx bias low warning flag on lane 5: False
+        Tx bias low warning flag on lane 6: False
+        Tx bias low warning flag on lane 7: False
+        Tx bias low warning flag on lane 8: False
+        Tx bias low alarm flag on lane 1: False
+        Tx bias low alarm flag on lane 2: False
+        Tx bias low alarm flag on lane 3: False
+        Tx bias low alarm flag on lane 4: False
+        Tx bias low alarm flag on lane 5: False
+        Tx bias low alarm flag on lane 6: False
+        Tx bias low alarm flag on lane 7: False
+        Tx bias low alarm flag on lane 8: False
+        Laser temperature high alarm flag: False
+        Laser temperature high warning flag: False
+        Laser temperature low warning flag: False
+        Laser temperature low alarm flag: False
+        Prefec ber high alarm flag: False
+        Prefec ber high warning flag: False
+        Prefec ber low warning flag: False
+        Prefec ber low alarm flag: False
+        Postfec ber high alarm flag: False
+        Postfec ber high warning flag: False
+        Postfec ber low warning flag: False
+        Postfec ber low alarm flag: False
+        Tuning in progress status: False
+        Laser unlocked status: False
+        Target output power out of range flag: False
+        Fine tuning out of range flag: False
+        Tuning not accepted flag: False
+        Invalid channel number flag: False
+        Tuning complete flag: False
+        Bias xi high alarm flag: False
+        Bias xi high warning flag: False
+        Bias xi low warning flag: False
+        Bias xi low alarm flag: False
+        Bias xq high alarm flag: False
+        Bias xq high warning flag: False
+        Bias xq low warning flag: False
+        Bias xq low alarm flag: False
+        Bias xp high alarm flag: False
+        Bias xp high warning flag: False
+        Bias xp low warning flag: False
+        Bias xp low alarm flag: False
+        Bias yi high alarm flag: False
+        Bias yi high warning flag: False
+        Bias yi low warning flag: False
+        Bias yi low alarm flag: False
+        Bias yq high alarm flag: False
+        Bias yq high warning flag: False
+        Bias yq low warning flag: False
+        Bias yq low alarm flag: False
+        Bias yp high alarm flag: False
+        Bias yp high warning flag: False
+        Bias yp low warning flag: False
+        Bias yp low alarm flag: False
+        CD short high alarm flag: False
+        CD short high warning flag: False
+        CD short low warning flag: False
+        CD short low alarm flag: False
+        CD long high alarm flag: False
+        CD long high warning flag: False
+        CD long low warning flag: False
+        CD long low alarm flag: False
+        DGD high alarm flag: False
+        DGD high warning flag: False
+        DGD low warning flag: False
+        DGD low alarm flag: False
+        PDL high alarm flag: False
+        PDL high warning flag: False
+        PDL low warning flag: False
+        PDL low alarm flag: False
+        OSNR high alarm flag: False
+        OSNR high warning flag: False
+        OSNR low warning flag: False
+        OSNR low alarm flag: False
+        ESNR high alarm flag: False
+        ESNR high warning flag: False
+        ESNR low warning flag: False
+        ESNR low alarm flag: False
+        CFO high alarm flag: False
+        CFO high warning flag: False
+        CFO low warning flag: False
+        CFO low alarm flag: False
+        Txcurrpower high alarm flag: False
+        Txcurrpower high warning flag: False
+        Txcurrpower low warning flag: False
+        Txcurrpower low alarm flag: False
+        Rxtotpower high alarm flag: False
+        Rxtotpower high warning flag: False
+        Rxtotpower low warning flag: False
+        Rxtotpower low alarm flag: False
+"""
+
 test_cmis_eeprom_output = """\
 Ethernet64: SFP EEPROM detected
         Active Firmware: X.X
@@ -231,6 +601,12 @@ Ethernet64: SFP EEPROM detected
                                    100GAUI-2 C2M (Annex 135G) - Host Assign (0x55) - 400ZR, DWDM, amplified - Media Assign (0x1)
         CMIS Rev: 4.1
         Connector: LC
+        E1 Active Firmware: X.X
+        E1 Inactive Firmware: Y.Y
+        E1 Server Firmware: A.B.C.D
+        E2 Active Firmware: X.X
+        E2 Inactive Firmware: Y.Y
+        E2 Server Firmware: A.B.C.D
         Encoding: N/A
         Extended Identifier: Power Class 8 (20.0W Max)
         Extended RateSelect Compliance: N/A
@@ -321,6 +697,12 @@ Ethernet64: SFP EEPROM detected
                                    100GAUI-2 C2M (Annex 135G) - Host Assign (0x55) - 400ZR, DWDM, amplified - Media Assign (0x1)
         CMIS Rev: 4.1
         Connector: LC
+        E1 Active Firmware: X.X
+        E1 Inactive Firmware: Y.Y
+        E1 Server Firmware: A.B.C.D
+        E2 Active Firmware: X.X
+        E2 Inactive Firmware: Y.Y
+        E2 Server Firmware: A.B.C.D
         Encoding: N/A
         Extended Identifier: Power Class 8 (20.0W Max)
         Extended RateSelect Compliance: N/A
@@ -411,6 +793,12 @@ Ethernet64: SFP EEPROM detected
                                    100GAUI-2 C2M (Annex 135G) - Host Assign (0x55) - 400ZR, DWDM, amplified - Media Assign (0x1)
         CMIS Rev: 4.1
         Connector: LC
+        E1 Active Firmware: X.X
+        E1 Inactive Firmware: Y.Y
+        E1 Server Firmware: A.B.C.D
+        E2 Active Firmware: X.X
+        E2 Inactive Firmware: Y.Y
+        E2 Server Firmware: A.B.C.D
         Encoding: N/A
         Extended Identifier: Power Class 8 (20.0W Max)
         Extended RateSelect Compliance: N/A
@@ -449,6 +837,14 @@ Ethernet0: Transceiver performance monitoring not applicable
 Ethernet4: Transceiver performance monitoring not applicable
 
 Ethernet64: Transceiver performance monitoring not applicable
+"""
+
+test_qsfp_dd_status_all_output = """\
+Ethernet0: Transceiver status info not applicable
+
+Ethernet4: Transceiver status info not applicable
+
+Ethernet64: Transceiver status info not applicable
 """
 
 class TestSFP(object):
@@ -508,17 +904,45 @@ Ethernet36  Present
         assert result.exit_code == 0
         assert result.output == expected
 
+    def test_sfp_dpc_ports(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"])
+        assert result.exit_code == 0
+        assert "Ethernet24" not in result.output
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"])
+        assert result.exit_code == 0
+        assert "Ethernet24" not in result.output
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"])
+        assert result.exit_code == 0
+        assert "Ethernet24" not in result.output
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["pm"])
+        assert result.exit_code == 0
+        assert "Ethernet24" not in result.output
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["info"])
+        assert result.exit_code == 0
+        assert "Ethernet24" not in result.output
+
     def test_sfp_eeprom_with_dom(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet0 -d"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet0", "-d"])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_eeprom_with_dom_output
 
     def test_qsfp_dd_eeprom_with_dom(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet8 -d"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet8", "-d"])
         assert result.exit_code == 0
         assert result.output == test_qsfp_dd_eeprom_with_dom_output
+        
+    def test_osfp_eeprom_with_dom(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet72", "-d"])
+        assert result.exit_code == 0
+        assert result.output == test_osfp_eeprom_with_dom_output
 
     def test_sfp_eeprom(self):
         runner = CliRunner()
@@ -568,6 +992,23 @@ Ethernet36  Present
         expected = "Ethernet200: Transceiver performance monitoring not applicable"
         assert result_lines == expected
 
+    def test_qsfp_status(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"], ["Ethernet4"])
+        assert result.exit_code == 0
+        assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_qsfp_status_output
+
+    def test_qsfp_dd_status(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"], ["Ethernet44"])
+        assert result.exit_code == 0
+        assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_qsfp_dd_status_output
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"], ["Ethernet200"])
+        result_lines = result.output.strip('\n')
+        expected = "Ethernet200: Transceiver status info not applicable"
+        assert result_lines == expected
+
     @classmethod
     def teardown_class(cls):
         print("TEARDOWN")
@@ -583,9 +1024,10 @@ class Test_multiAsic_SFP(object):
         os.environ["UTILITIES_UNIT_TESTING"] = "2"
         os.environ["UTILITIES_UNIT_TESTING_TOPOLOGY"] = "multi_asic"
 
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_sfp_presence_with_ns(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ["Ethernet0 -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ['Ethernet0', '-n', 'asic0'])
         expected = """Port       Presence
 ---------  ----------
 Ethernet0  Present
@@ -593,7 +1035,7 @@ Ethernet0  Present
         assert result.exit_code == 0
         assert result.output == expected
 
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ["Ethernet200 -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ['Ethernet200', '-n', 'asic0'])
         expected = """Port         Presence
 -----------  -----------
 Ethernet200  Not present
@@ -607,33 +1049,45 @@ Ethernet200  Not present
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_presence_all_output
 
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_sfp_eeprom_with_dom_with_ns(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet0 -d -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ['Ethernet0', '-d', '-n', 'asic0'])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_eeprom_with_dom_output
 
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_sfp_eeprom_with_ns(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet0 -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ['Ethernet0', '-n', 'asic0'])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_eeprom_output
 
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ["Ethernet200 -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["eeprom"], ['Ethernet200', '-n', 'asic0'])
         result_lines = result.output.strip('\n')
         expected = "Ethernet200: SFP EEPROM Not detected"
         assert result_lines == expected
 
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_qsfp_dd_pm_with_ns(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["pm"], ["Ethernet0 -n asic0"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["pm"], ['Ethernet0', '-n', 'asic0'])
         result_lines = result.output.strip('\n')
         expected = "Ethernet0: Transceiver performance monitoring not applicable"
         assert result_lines == expected
 
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
+    def test_qsfp_dd_status_with_ns(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"], ['Ethernet0', '-n', 'asic0'])
+        result_lines = result.output.strip('\n')
+        expected = "Ethernet0: Transceiver status info not applicable"
+        assert result_lines == expected
+
+    @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic1'))
     def test_cmis_sfp_info_with_ns(self):
         runner = CliRunner()
-        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["info"], ["Ethernet64 -n asic1"])
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["info"], ['Ethernet64', '-n', 'asic1'])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_cmis_eeprom_output
 
@@ -667,6 +1121,12 @@ Ethernet200  Not present
         result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["pm"])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_qsfp_dd_pm_all_output
+
+    def test_qsfp_dd_status_all(self):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["status"])
+        assert result.exit_code == 0
+        assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_qsfp_dd_status_all_output
 
     @classmethod
     def teardown_class(cls):

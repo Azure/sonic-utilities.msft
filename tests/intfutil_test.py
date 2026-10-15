@@ -11,23 +11,23 @@ modules_path = os.path.dirname(root_path)
 scripts_path = os.path.join(modules_path, "scripts")
 
 show_interface_status_output="""\
-      Interface            Lanes    Speed    MTU    FEC      Alias             Vlan    Oper    Admin             Type    Asym PFC
----------------  ---------------  -------  -----  -----  ---------  ---------------  ------  -------  ---------------  ----------
-      Ethernet0                0      25G   9100     rs  Ethernet0           routed    down       up  QSFP28 or later         off
-     Ethernet16               16     100M   9100    N/A       etp5            trunk      up       up             RJ45         off
-     Ethernet24               24       1G   9100    N/A       etp6            trunk      up       up  QSFP28 or later         off
-     Ethernet28               28    1000M   9100    N/A       etp8            trunk      up       up             RJ45         off
-     Ethernet32      13,14,15,16      40G   9100     rs       etp9  PortChannel1001      up       up              N/A         off
-     Ethernet36       9,10,11,12      10M   9100    N/A      etp10           routed      up       up             RJ45         off
-    Ethernet112      93,94,95,96      40G   9100     rs      etp29  PortChannel0001      up       up              N/A         off
-    Ethernet116      89,90,91,92      40G   9100     rs      etp30  PortChannel0002      up       up              N/A         off
-    Ethernet120  101,102,103,104      40G   9100     rs      etp31  PortChannel0003      up       up              N/A         off
-    Ethernet124     97,98,99,100      40G   9100     rs      etp32  PortChannel0004      up       up              N/A         off
-PortChannel0001              N/A      40G   9100    N/A        N/A           routed    down       up              N/A         N/A
-PortChannel0002              N/A      40G   9100    N/A        N/A           routed      up       up              N/A         N/A
-PortChannel0003              N/A      40G   9100    N/A        N/A           routed      up       up              N/A         N/A
-PortChannel0004              N/A      40G   9100    N/A        N/A           routed      up       up              N/A         N/A
-PortChannel1001              N/A      40G   9100    N/A        N/A            trunk     N/A      N/A              N/A         N/A
+      Interface            Lanes    Speed    MTU    FEC      Alias             Vlan    Oper    Admin               Type    Asym PFC
+---------------  ---------------  -------  -----  -----  ---------  ---------------  ------  -------  -----------------  ----------
+      Ethernet0                0      25G   9100     rs  Ethernet0           routed    down       up    QSFP28 or later         off
+     Ethernet16               16     100M   9100    N/A       etp5            trunk      up       up               RJ45         off
+     Ethernet24               24       1G   9100    N/A       etp6            trunk      up       up  DPU-NPU Data Port         off
+     Ethernet28               28    1000M   9100    N/A       etp8            trunk      up       up               RJ45         off
+     Ethernet32      13,14,15,16      40G   9100     rs       etp9  PortChannel1001      up       up                N/A         off
+     Ethernet36       9,10,11,12      10M   9100    N/A      etp10           routed      up       up               RJ45         off
+    Ethernet112      93,94,95,96      40G   9100     rs      etp29  PortChannel0001      up       up                N/A         off
+    Ethernet116      89,90,91,92      40G   9100     rs      etp30  PortChannel0002      up       up                N/A         off
+    Ethernet120  101,102,103,104      40G   9100     rs      etp31  PortChannel0003      up       up                N/A         off
+    Ethernet124     97,98,99,100      40G   9100   auto      etp32  PortChannel0004      up       up                N/A         off
+PortChannel0001              N/A      40G   9100    N/A        N/A           routed    down       up                N/A         N/A
+PortChannel0002              N/A      40G   9100    N/A        N/A           routed      up       up                N/A         N/A
+PortChannel0003              N/A      40G   9100    N/A        N/A           routed      up       up                N/A         N/A
+PortChannel0004              N/A      40G   9100    N/A        N/A           routed      up       up                N/A         N/A
+PortChannel1001              N/A      40G   9100    N/A        N/A            trunk     N/A      N/A                N/A         N/A
 """
 
 show_interface_status_Ethernet32_output="""\
@@ -112,6 +112,21 @@ Ethernet120          N/A         N/A      up       up
 Ethernet124          N/A         N/A      up       up
 """
 
+show_interface_fec_status_output = """\
+  Interface    FEC Oper    FEC Admin
+-----------  ----------  -----------
+  Ethernet0         N/A           rs
+ Ethernet16         N/A          N/A
+ Ethernet24         N/A          N/A
+ Ethernet28         N/A          N/A
+ Ethernet32         N/A           rs
+ Ethernet36         N/A          N/A
+Ethernet112         N/A           rs
+Ethernet116         N/A           rs
+Ethernet120         N/A           rs
+Ethernet124          rs         auto
+"""
+
 class TestIntfutil(TestCase):
     @classmethod
     def setup_class(cls):
@@ -133,7 +148,7 @@ class TestIntfutil(TestCase):
         assert result.output == show_interface_status_output
 
         # Test 'intfutil status'
-        output = subprocess.check_output('intfutil -c status', stderr=subprocess.STDOUT, shell=True, text=True)
+        output = subprocess.check_output(['intfutil', '-c', 'status'], stderr=subprocess.STDOUT, text=True)
         print(output)
         assert result.output == show_interface_status_output
 
@@ -216,7 +231,7 @@ class TestIntfutil(TestCase):
         self.assertEqual(result.output.strip(), expected_output)
 
         # Test 'intfutil status subport'
-        output = subprocess.check_output('intfutil -c status -i subport', stderr=subprocess.STDOUT, shell=True, text=True)
+        output = subprocess.check_output(['intfutil', '-c', 'status', '-i', 'subport'], stderr=subprocess.STDOUT, text=True)
         print(output, file=sys.stderr)
         self.assertEqual(output.strip(), expected_output)
 
@@ -241,7 +256,7 @@ class TestIntfutil(TestCase):
         self.assertEqual(result.output.strip(), expected_output)
 
         # Test 'intfutil status Ethernet0.10'
-        output = subprocess.check_output('intfutil -c status -i Ethernet0.10', stderr=subprocess.STDOUT, shell=True, text=True)
+        output = subprocess.check_output(['intfutil', '-c', 'status', '-i', 'Ethernet0.10'], stderr=subprocess.STDOUT, text=True)
         print(output, file=sys.stderr)
         self.assertEqual(output.strip(), expected_output)
 
@@ -251,7 +266,7 @@ class TestIntfutil(TestCase):
           "            Eth36.10      10M   9100     100       up  802.1q-encapsulation"
         )
         # Test 'intfutil status Eth36.10'
-        output = subprocess.check_output('intfutil -c status -i Eth36.10', stderr=subprocess.STDOUT, shell=True, text=True)
+        output = subprocess.check_output(['intfutil', '-c', 'status', '-i', 'Eth36.10'], stderr=subprocess.STDOUT, text=True)
         print(output, file=sys.stderr)
         self.assertEqual(output.strip(), expected_output)
 
@@ -261,7 +276,7 @@ class TestIntfutil(TestCase):
           "           Po0001.10      40G   9100     100       up  802.1q-encapsulation"
         )
         # Test 'intfutil status Po0001.10'
-        output = subprocess.check_output('intfutil -c status -i Po0001.10', stderr=subprocess.STDOUT, shell=True, text=True)
+        output = subprocess.check_output(['intfutil', '-c', 'status', '-i', 'Po0001.10'], stderr=subprocess.STDOUT, text=True)
         print(output, file=sys.stderr)
         self.assertEqual(output.strip(), expected_output)
 
@@ -337,6 +352,13 @@ class TestIntfutil(TestCase):
         print(result.output)
         assert result.exit_code == 0
         assert result.output == show_interface_link_training_status_output
+
+    def test_show_interfaces_fec_status(self):
+        result = self.runner.invoke(show.cli.commands["interfaces"].commands["fec"].commands["status"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == show_interface_fec_status_output
 
     @classmethod
     def teardown_class(cls):

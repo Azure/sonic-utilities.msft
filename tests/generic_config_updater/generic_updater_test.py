@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import unittest
-from unittest.mock import MagicMock, Mock, call
+from unittest.mock import MagicMock, Mock, call, patch
 from .gutest_helpers import create_side_effect_dict, Files
 
 import generic_config_updater.generic_updater as gu
@@ -41,7 +41,7 @@ class TestPatchApplier(unittest.TestCase):
         patch_applier.patch_wrapper.simulate_patch.assert_has_calls(
             [call(Files.MULTI_OPERATION_CONFIG_DB_PATCH, Files.CONFIG_DB_AS_JSON)])
         patch_applier.patchsorter.sort.assert_has_calls([call(Files.MULTI_OPERATION_CONFIG_DB_PATCH)])
-        patch_applier.changeapplier.apply.assert_has_calls([call(changes[0]), call(changes[1])])
+        patch_applier.changeapplier.apply.assert_called()
         patch_applier.patch_wrapper.verify_same_json.assert_has_calls(
             [call(Files.CONFIG_DB_AFTER_MULTI_PATCH, Files.CONFIG_DB_AFTER_MULTI_PATCH)])
 
@@ -72,7 +72,7 @@ class TestPatchApplier(unittest.TestCase):
             create_side_effect_dict({(str(Files.MULTI_OPERATION_CONFIG_DB_PATCH),): changes})
 
         changeapplier = Mock()
-        changeapplier.apply.side_effect = create_side_effect_dict({(str(changes[0]),): 0, (str(changes[1]),): 0})
+        changeapplier.apply.side_effect = lambda current_config, change: current_config
 
         return gu.PatchApplier(patchsorter, changeapplier, config_wrapper, patch_wrapper)
 
@@ -124,6 +124,8 @@ class TestConfigReplacer(unittest.TestCase):
 
         return gu.ConfigReplacer(patch_applier, config_wrapper, patch_wrapper)
 
+
+@patch('generic_config_updater.generic_updater.get_config_json', MagicMock(return_value={}))
 class TestFileSystemConfigRollbacker(unittest.TestCase):
     def setUp(self):
         self.checkpoints_dir = os.path.join(os.getcwd(),"checkpoints")

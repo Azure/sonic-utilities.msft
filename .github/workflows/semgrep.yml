@@ -18,4 +18,4 @@ jobs:
       - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
       - run: semgrep ci
         env:
-           SEMGREP_RULES: p/default
+           SEMGREP_RULES: "p/default r/python.lang.security.audit.dangerous-system-call-audit.dangerous-system-call-audit .semgrep/"

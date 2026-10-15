@@ -9,9 +9,12 @@ import re
 
 from sonic_py_common import device_info, logger
 from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, SonicDBConfig
-from db_migrator_constants import RESTAPI, TELEMETRY, CONSOLE_SWITCH
+from minigraph import parse_xml
+from utilities_common.helper import update_config
 
 INIT_CFG_FILE = '/etc/sonic/init_cfg.json'
+MINIGRAPH_FILE = '/etc/sonic/minigraph.xml'
+GOLDEN_CFG_FILE = '/etc/sonic/golden_config_db.json'
 
 # mock the redis for unit test purposes #
 try:
@@ -22,10 +25,13 @@ try:
         sys.path.insert(0, modules_path)
         sys.path.insert(0, tests_path)
         INIT_CFG_FILE = os.path.join(mocked_db_path, "init_cfg.json")
+        MINIGRAPH_FILE = os.path.join(mocked_db_path, "minigraph.xml")
+        GOLDEN_CFG_FILE = os.path.join(mocked_db_path, "golden_config_db.json")
 except KeyError:
     pass
 
 SYSLOG_IDENTIFIER = 'db_migrator'
+DEFAULT_NAMESPACE = ''
 
 
 # Global logger instance
@@ -35,7 +41,14 @@ log = logger.Logger(SYSLOG_IDENTIFIER)
 class DBMigrator():
     def __init__(self, namespace, socket=None):
         """
-        Version string format:
+        Version string format (202305 and above):
+            version_<branch>_<build>
+              branch: master, 202311, 202305, etc.
+              build:  sequentially increase with leading 0 to make it 2 digits.
+                      because the minor number has been removed to make it different
+                      from the old format, adding a leading 0 to make sure that we
+                      have double digit version number spaces.
+        Version string format (before 202305):
            version_<major>_<minor>_<build>
               major: starting from 1, sequentially incrementing in master
                      branch.
@@ -45,11 +58,16 @@ class DBMigrator():
                      none-zero values.
               build: sequentially increase within a minor version domain.
         """
-        self.CURRENT_VERSION = 'version_4_0_2'
+        self.CURRENT_VERSION = 'version_202405_02'
 
         self.TABLE_NAME      = 'VERSIONS'
         self.TABLE_KEY       = 'DATABASE'
         self.TABLE_FIELD     = 'VERSION'
+
+        self.platform = device_info.get_platform_info().get('platform')
+
+        # Generate config_src_data from minigraph and golden config
+        self.generate_config_src(namespace)
 
         db_kwargs = {}
         if socket:
@@ -76,13 +94,66 @@ class DBMigrator():
             self.loglevelDB.connect(self.loglevelDB.LOGLEVEL_DB)
 
         version_info = device_info.get_sonic_version_info()
-        asic_type = version_info.get('asic_type')
-        self.asic_type = asic_type
-        self.hwsku = device_info.get_hwsku()
+        self.asic_type = version_info.get('asic_type')
+        if not self.asic_type:
+            log.log_error("ASIC type information not obtained. DB migration will not be reliable")
 
-        if asic_type == "mellanox":
+        self.hwsku = device_info.get_localhost_info('hwsku', self.configDB)
+        if not self.hwsku:
+            log.log_error("HWSKU information not obtained. DB migration will not be reliable")
+
+        if self.asic_type == "mellanox":
             from mellanox_buffer_migrator import MellanoxBufferMigrator
             self.mellanox_buffer_migrator = MellanoxBufferMigrator(self.configDB, self.appDB, self.stateDB)
+
+    def generate_config_src(self, ns):
+        '''
+        Generate config_src_data from minigraph and golden config
+        This method uses golden_config_data and minigraph_data as local variables,
+        which means they are not accessible or modifiable from outside this method.
+        This way, this method ensures that these variables are not changed unintentionally.
+        Args:
+            ns: namespace
+        Returns:
+        '''
+        # load config data from golden_config_db.json
+        golden_config_data = None
+        try:
+            if os.path.isfile(GOLDEN_CFG_FILE):
+                with open(GOLDEN_CFG_FILE) as f:
+                    golden_data = json.load(f)
+                    if ns is None:
+                        golden_config_data = golden_data
+                    else:
+                        if ns == DEFAULT_NAMESPACE:
+                            config_namespace = "localhost"
+                        else:
+                            config_namespace = ns
+                        golden_config_data = golden_data.get(config_namespace, None)
+        except Exception as e:
+            log.log_error('Caught exception while trying to load golden config: ' + str(e))
+            pass
+        # load config data from minigraph to get the default/hardcoded values from minigraph.py
+        minigraph_data = None
+        try:
+            if os.path.isfile(MINIGRAPH_FILE):
+                minigraph_data = parse_xml(MINIGRAPH_FILE, platform=self.platform)
+        except Exception as e:
+            log.log_error('Caught exception while trying to parse minigraph: ' + str(e))
+            pass
+        # When both golden config and minigraph exists, override minigraph config with golden config
+        # config_src_data is the source of truth for config data
+        # this is to avoid duplicating the hardcoded these values in db_migrator
+        self.config_src_data = None
+        if minigraph_data:
+            # Shallow copy for better performance
+            self.config_src_data = minigraph_data
+            if golden_config_data:
+                # Shallow copy for better performance
+                self.config_src_data = update_config(minigraph_data, golden_config_data, False)
+        elif golden_config_data:
+            # Shallow copy for better performance
+            self.config_src_data = golden_config_data
 
     def migrate_pfc_wd_table(self):
         '''
@@ -524,39 +595,95 @@ class DBMigrator():
 
     def migrate_restapi(self):
         # RESTAPI - add missing key
+        if not self.config_src_data or 'RESTAPI' not in self.config_src_data:
+            return
+        restapi_data = self.config_src_data['RESTAPI']
         log.log_notice('Migrate RESTAPI configuration')
         config = self.configDB.get_entry('RESTAPI', 'config')
         if not config:
-            self.configDB.set_entry("RESTAPI", "config", RESTAPI.get("config"))
+            self.configDB.set_entry("RESTAPI", "config", restapi_data.get("config"))
         certs = self.configDB.get_entry('RESTAPI', 'certs')
         if not certs:
-            self.configDB.set_entry("RESTAPI", "certs", RESTAPI.get("certs"))
+            self.configDB.set_entry("RESTAPI", "certs", restapi_data.get("certs"))
 
     def migrate_telemetry(self):
         # TELEMETRY - add missing key
+        if not self.config_src_data or 'TELEMETRY' not in self.config_src_data:
+            return
+        telemetry_data = self.config_src_data['TELEMETRY']
         log.log_notice('Migrate TELEMETRY configuration')
         gnmi = self.configDB.get_entry('TELEMETRY', 'gnmi')
         if not gnmi:
-            self.configDB.set_entry("TELEMETRY", "gnmi", TELEMETRY.get("gnmi"))
+            self.configDB.set_entry("TELEMETRY", "gnmi", telemetry_data.get("gnmi"))
         certs = self.configDB.get_entry('TELEMETRY', 'certs')
         if not certs:
-            self.configDB.set_entry("TELEMETRY", "certs", TELEMETRY.get("certs"))
+            self.configDB.set_entry("TELEMETRY", "certs", telemetry_data.get("certs"))
+
+    def migrate_gnmi(self):
+        # If there's GNMI table in CONFIG_DB, no need to migrate
+        gnmi = self.configDB.get_entry('GNMI', 'gnmi')
+        certs = self.configDB.get_entry('GNMI', 'certs')
+        if gnmi and certs:
+            return
+        if self.config_src_data:
+            if 'GNMI' in self.config_src_data:
+                # If there's GNMI in minigraph or golden config, copy configuration from config_src_data
+                gnmi_data = self.config_src_data['GNMI']
+                log.log_notice('Migrate GNMI configuration')
+                if 'gnmi' in gnmi_data:
+                    self.configDB.set_entry("GNMI", "gnmi", gnmi_data.get('gnmi'))
+                if 'certs' in gnmi_data:
+                    self.configDB.set_entry("GNMI", "certs", gnmi_data.get('certs'))
+        else:
+            # If there's no minigraph or golden config, copy configuration from CONFIG_DB TELEMETRY table
+            gnmi = self.configDB.get_entry('TELEMETRY', 'gnmi')
+            if gnmi:
+                self.configDB.set_entry("GNMI", "gnmi", gnmi)
+            certs = self.configDB.get_entry('TELEMETRY', 'certs')
+            if certs:
+                self.configDB.set_entry("GNMI", "certs", certs)
 
     def migrate_console_switch(self):
         # CONSOLE_SWITCH - add missing key
+        if not self.config_src_data or 'CONSOLE_SWITCH' not in self.config_src_data:
+            return
+        console_switch_data = self.config_src_data['CONSOLE_SWITCH']
         log.log_notice('Migrate CONSOLE_SWITCH configuration')
         console_mgmt = self.configDB.get_entry('CONSOLE_SWITCH', 'console_mgmt')
         if not console_mgmt:
             self.configDB.set_entry("CONSOLE_SWITCH", "console_mgmt",
-                CONSOLE_SWITCH.get("console_mgmt"))
+                console_switch_data.get("console_mgmt"))
 
     def migrate_device_metadata(self):
         # DEVICE_METADATA - synchronous_mode entry
-        log.log_notice('Migrate DEVICE_METADATA missing configuration (synchronous_mode=enable)')
+        if not self.config_src_data or 'DEVICE_METADATA' not in self.config_src_data:
+            return
+        log.log_notice('Migrate DEVICE_METADATA missing configuration')
         metadata = self.configDB.get_entry('DEVICE_METADATA', 'localhost')
+        device_metadata_data = self.config_src_data["DEVICE_METADATA"]["localhost"]
         if 'synchronous_mode' not in metadata:
-            metadata['synchronous_mode'] = 'enable'
+            metadata['synchronous_mode'] = device_metadata_data.get("synchronous_mode")
             self.configDB.set_entry('DEVICE_METADATA', 'localhost', metadata)
+
+    def migrate_ipinip_tunnel(self):
+        """Migrate TUNNEL_DECAP_TABLE to add decap terms with TUNNEL_DECAP_TERM_TABLE."""
+        tunnel_decap_table = self.appDB.get_table('TUNNEL_DECAP_TABLE')
+        app_db_separator = self.appDB.get_db_separator(self.appDB.APPL_DB)
+        for key, attrs in tunnel_decap_table.items():
+            dst_ip = attrs.pop("dst_ip", None)
+            src_ip = attrs.pop("src_ip", None)
+            if dst_ip:
+                dst_ips = dst_ip.split(",")
+                for dip in dst_ips:
+                    decap_term_table_key = app_db_separator.join(["TUNNEL_DECAP_TERM_TABLE", key, dip])
+                    if src_ip:
+                        self.appDB.set(self.appDB.APPL_DB, decap_term_table_key, "src_ip", src_ip)
+                        self.appDB.set(self.appDB.APPL_DB, decap_term_table_key, "term_type", "P2P")
+                    else:
+                        self.appDB.set(self.appDB.APPL_DB, decap_term_table_key, "term_type", "P2MP")
+
+            if dst_ip or src_ip:
+                self.appDB.set_entry("TUNNEL_DECAP_TABLE", key, attrs)
 
     def migrate_port_qos_map_global(self):
         """
@@ -586,22 +713,34 @@ class DBMigrator():
                 config['delayed'] = state
                 config.pop('has_timer')
                 self.configDB.set_entry('FEATURE', feature, config)
-    def migrate_route_table(self):
+
+
+    def migrate_dns_nameserver(self):
         """
-        Handle route table migration. Migrations handled:
-        1. 'weight' attr in ROUTE object was introduced 202205 onwards.
-            Upgrade from older branch to 202205 will require this 'weight' attr to be added explicitly
+        Handle DNS_NAMESERVER table migration. Migrations handled:
+        If there's no DNS_NAMESERVER in config_DB, load DNS_NAMESERVER from minigraph
         """
-        route_table = self.appDB.get_table("ROUTE_TABLE")
-        for route_prefix, route_attr in route_table.items():
-            if 'weight' not in route_attr:
-                if type(route_prefix) == tuple:
-                    # IPv6 route_prefix is returned from db as tuple
-                    route_key = "ROUTE_TABLE:" + ":".join(route_prefix)
-                else:
-                    # IPv4 route_prefix is returned from db as str
-                    route_key = "ROUTE_TABLE:{}".format(route_prefix)
-                self.appDB.set(self.appDB.APPL_DB, route_key, 'weight','')
+        if not self.config_src_data or 'DNS_NAMESERVER' not in self.config_src_data:
+            return
+        dns_table = self.configDB.get_table('DNS_NAMESERVER')
+        if not dns_table:
+            for addr, config in self.config_src_data['DNS_NAMESERVER'].items():
+                self.configDB.set_entry('DNS_NAMESERVER', addr, config)
+
+    def migrate_routing_config_mode(self):
+        # DEVICE_METADATA - synchronous_mode entry
+        if not self.config_src_data or 'DEVICE_METADATA' not in self.config_src_data:
+            return
+        device_metadata_old = self.configDB.get_entry('DEVICE_METADATA', 'localhost')
+        device_metadata_new = self.config_src_data['DEVICE_METADATA']['localhost']
+        # overwrite the routing-config-mode as per minigraph parser
+        # Criteria for update:
+        # if config mode is missing in base OS or if base and target modes are not same
+        #  Eg. in 201811 mode is "unified", and in newer branches mode is "separated"
+        if ('docker_routing_config_mode' not in device_metadata_old and 'docker_routing_config_mode' in device_metadata_new) or \
+        (device_metadata_old.get('docker_routing_config_mode') != device_metadata_new.get('docker_routing_config_mode')):
+            device_metadata_old['docker_routing_config_mode'] = device_metadata_new.get('docker_routing_config_mode')
+            self.configDB.set_entry('DEVICE_METADATA', 'localhost', device_metadata_old)
 
     def update_edgezone_aggregator_config(self):
         """
@@ -646,6 +785,98 @@ class DBMigrator():
             if intf in edgezone_aggregator_intfs:
                 # Set new cable length values
                 self.configDB.set(self.configDB.CONFIG_DB, "CABLE_LENGTH|AZURE", intf, EDGEZONE_AGG_CABLE_LENGTH)
+
+    def migrate_config_db_flex_counter_delay_status(self):
+        """
+        Migrate "FLEX_COUNTER_TABLE|*": { "value": { "FLEX_COUNTER_DELAY_STATUS": "false" } }
+        Set FLEX_COUNTER_DELAY_STATUS true in case of fast-reboot
+        """
+
+        flex_counter_objects = self.configDB.get_keys('FLEX_COUNTER_TABLE')
+        for obj in flex_counter_objects:
+            flex_counter = self.configDB.get_entry('FLEX_COUNTER_TABLE', obj)
+            delay_status = flex_counter.get('FLEX_COUNTER_DELAY_STATUS')
+            if delay_status is None or delay_status == 'false':
+                flex_counter['FLEX_COUNTER_DELAY_STATUS'] = 'true'
+                self.configDB.mod_entry('FLEX_COUNTER_TABLE', obj, flex_counter)
+
+    def migrate_sflow_table(self):
+        """
+        Migrate "SFLOW_TABLE" and "SFLOW_SESSION_TABLE" to update default sample_direction
+        """
+
+        sflow_tbl = self.configDB.get_table('SFLOW')
+        for k, v in sflow_tbl.items():
+            if 'sample_direction' not in v:
+                v['sample_direction'] = 'rx'
+                self.configDB.set_entry('SFLOW', k, v)
+
+        sflow_sess_tbl = self.configDB.get_table('SFLOW_SESSION')
+        for k, v in sflow_sess_tbl.items():
+            if 'sample_direction' not in v:
+                v['sample_direction'] = 'rx'
+                self.configDB.set_entry('SFLOW_SESSION', k, v)
+
+        sflow_table = self.appDB.get_table("SFLOW_TABLE")
+        for key, value in sflow_table.items():
+            if 'sample_direction' not in value:
+                sflow_key = "SFLOW_TABLE:{}".format(key)
+                self.appDB.set(self.appDB.APPL_DB, sflow_key, 'sample_direction','rx')
+
+        sflow_sess_table = self.appDB.get_table("SFLOW_SESSION_TABLE")
+        for key, value in sflow_sess_table.items():
+            if 'sample_direction' not in value:
+                sflow_key = "SFLOW_SESSION_TABLE:{}".format(key)
+                self.appDB.set(self.appDB.APPL_DB, sflow_key, 'sample_direction','rx')
+
+    def migrate_tacplus(self):
+        if not self.config_src_data or 'TACPLUS' not in self.config_src_data:
+            return
+
+        tacplus_new = self.config_src_data['TACPLUS']
+        log.log_notice('Migrate TACPLUS configuration')
+
+        global_old = self.configDB.get_entry('TACPLUS', 'global')
+        if not global_old:
+            global_new = tacplus_new.get("global")
+            self.configDB.set_entry("TACPLUS", "global", global_new)
+            log.log_info('Migrate TACPLUS global: {}'.format(global_new))
+
+    def migrate_aaa(self):
+        if not self.config_src_data or 'AAA' not in self.config_src_data:
+            return
+
+        aaa_new = self.config_src_data['AAA']
+        log.log_notice('Migrate AAA configuration')
+
+        authentication = self.configDB.get_entry('AAA', 'authentication')
+        if not authentication:
+            authentication_new = aaa_new.get("authentication")
+            self.configDB.set_entry("AAA", "authentication", authentication_new)
+            log.log_info('Migrate AAA authentication: {}'.format(authentication_new))
+
+        # setup per-command accounting
+        accounting = self.configDB.get_entry('AAA', 'accounting')
+        if not accounting:
+            accounting_new = aaa_new.get("accounting")
+            self.configDB.set_entry("AAA", "accounting", accounting_new)
+            log.log_info('Migrate AAA accounting: {}'.format(accounting_new))
+
+        # setup per-command authorization
+        tacplus_config = self.configDB.get_entry('TACPLUS', 'global')
+        if 'passkey' in tacplus_config and '' != tacplus_config.get('passkey'):
+            authorization = self.configDB.get_entry('AAA', 'authorization')
+            if not authorization:
+                authorization_new = aaa_new.get("authorization")
+                self.configDB.set_entry("AAA", "authorization", authorization_new)
+                log.log_info('Migrate AAA authorization: {}'.format(authorization_new))
+        else:
+            # If no passkey, setup per-command authorization will block remote user command
+            log.log_info('TACACS passkey does not exist, disable per-command authorization.')
+            authorization_key = "AAA|authorization"
+            keys = self.configDB.keys(self.configDB.CONFIG_DB, authorization_key)
+            if keys:
+                self.configDB.delete(self.configDB.CONFIG_DB, authorization_key)
 
     def version_unknown(self):
         """
@@ -908,10 +1139,19 @@ class DBMigrator():
     def version_3_0_6(self):
         """
         Version 3_0_6
-        This is the latest version for 202211 branch
         """
 
         log.log_info('Handling version_3_0_6')
+        self.set_version('version_3_0_7')
+        return 'version_3_0_7'
+
+    def version_3_0_7(self):
+        """
+        Version 3_0_7
+        This is the latest version for 202205 branch
+        """
+
+        log.log_info('Handling version_3_0_7')
         self.set_version('version_4_0_0')
         return 'version_4_0_0'
 
@@ -925,12 +1165,14 @@ class DBMigrator():
         # reading FAST_REBOOT table can't be done with stateDB.get as it uses hget behind the scenes and the table structure is
         # not using hash and won't work.
         # FAST_REBOOT table exists only if fast-reboot was triggered.
-        keys = self.stateDB.keys(self.stateDB.STATE_DB, "FAST_REBOOT|system")
-        if keys:
-            enable_state = 'true'
-        else:
-            enable_state = 'false'
-        self.stateDB.set(self.stateDB.STATE_DB, 'FAST_RESTART_ENABLE_TABLE|system', 'enable', enable_state)
+        keys = self.stateDB.keys(self.stateDB.STATE_DB, "FAST_RESTART_ENABLE_TABLE|system")
+        if not keys:
+            keys = self.stateDB.keys(self.stateDB.STATE_DB, "FAST_REBOOT|system")
+            if keys:
+                enable_state = 'true'
+            else:
+                enable_state = 'false'
+            self.stateDB.set(self.stateDB.STATE_DB, 'FAST_RESTART_ENABLE_TABLE|system', 'enable', enable_state)
         self.set_version('version_4_0_1')
         return 'version_4_0_1'
 
@@ -938,6 +1180,8 @@ class DBMigrator():
         """
         Version 4_0_1.
         """
+        log.log_info('Handling version_4_0_1')
+
         self.migrate_feature_timer()
         self.set_version('version_4_0_2')
         return 'version_4_0_2'
@@ -945,9 +1189,79 @@ class DBMigrator():
     def version_4_0_2(self):
         """
         Version 4_0_2.
-        This is the latest version for master branch
         """
         log.log_info('Handling version_4_0_2')
+        if self.stateDB.keys(self.stateDB.STATE_DB, "FAST_REBOOT|system"):
+            self.migrate_config_db_flex_counter_delay_status()
+
+        self.set_version('version_4_0_3')
+        return 'version_4_0_3'
+
+    def version_4_0_3(self):
+        """
+        Version 4_0_3.
+        """
+        log.log_info('Handling version_4_0_3')
+
+        self.set_version('version_202305_01')
+        return 'version_202305_01'
+
+    def version_202305_01(self):
+        """
+        Version 202305_01.
+        This is current last erversion for 202305 branch
+        """
+        log.log_info('Handling version_202305_01')
+        self.set_version('version_202311_01')
+        return 'version_202311_01'
+
+    def version_202311_01(self):
+        """
+        Version 202311_01.
+        """
+        log.log_info('Handling version_202311_01')
+
+        # Updating DNS nameserver
+        self.migrate_dns_nameserver()
+
+        self.migrate_sflow_table()
+        self.set_version('version_202311_02')
+        return 'version_202311_02'
+
+    def version_202311_02(self):
+        """
+        Version 202311_02.
+        """
+        log.log_info('Handling version_202311_02')
+        # Update GNMI table
+        self.migrate_gnmi()
+
+        self.set_version('version_202311_03')
+        return 'version_202311_03'
+
+    def version_202311_03(self):
+        """
+        Version 202311_03.
+        This is current last erversion for 202311 branch
+        """
+        log.log_info('Handling version_202311_03')
+        self.set_version('version_202405_01')
+        return 'version_202405_01'
+
+    def version_202405_01(self):
+        """
+        Version 202405_01.
+        """
+        log.log_info('Handling version_202405_01')
+        self.set_version('version_202405_02')
+        return 'version_202405_02'
+
+    def version_202405_02(self):
+        """
+        Version 202405_02.
+        """
+        log.log_info('Handling version_202405_02')
+        self.migrate_ipinip_tunnel()
         return None
 
     def get_version(self):
@@ -989,15 +1303,18 @@ class DBMigrator():
         # removed together with calling to migrate_copp_table function.
         if self.asic_type != "mellanox":
             self.migrate_copp_table()
-        if self.asic_type == "broadcom" and 'Force10-S6100' in self.hwsku:
+        if self.asic_type == "broadcom" and 'Force10-S6100' in str(self.hwsku):
             self.migrate_mgmt_ports_on_s6100()
         else:
             log.log_notice("Asic Type: {}, Hwsku: {}".format(self.asic_type, self.hwsku))
 
-        self.migrate_route_table()
-
         # Updating edgezone aggregator cable length config for T0 devices
         self.update_edgezone_aggregator_config()
+        # update FRR config mode based on minigraph parser on target image
+        self.migrate_routing_config_mode()
+
+        self.migrate_tacplus()
+        self.migrate_aaa()
 
     def migrate(self):
         version = self.get_version()
@@ -1041,10 +1358,14 @@ def main():
         socket_path = args.socket
         namespace = args.namespace
 
+        # Can't load global config base on the result of is_multi_asic(), because on multi-asic device, when db_migrate.py
+        # run on the local database, ASIC instance will have not created the /var/run/redis0/sonic-db/database-config.json
         if args.namespace is not None:
-            SonicDBConfig.load_sonic_global_db_config(namespace=args.namespace)
+            if not SonicDBConfig.isGlobalInit():
+                SonicDBConfig.initializeGlobalConfig()
         else:
-            SonicDBConfig.initialize()
+            if not SonicDBConfig.isInit():
+                SonicDBConfig.initialize()
 
         if socket_path:
             dbmgtr = DBMigrator(namespace, socket=socket_path)

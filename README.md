@@ -34,6 +34,8 @@ Currently, this list of dependencies is as follows:
 - libyang_1.0.73_amd64.deb
 - libyang-cpp_1.0.73_amd64.deb
 - python3-yang_1.0.73_amd64.deb
+- libyang3_3.*_amd64.deb
+- python3-libyang_3.*_amd64.deb
 - redis_dump_load-1.1-py3-none-any.whl
 - sonic_py_common-1.0-py3-none-any.whl
 - sonic_config_engine-1.0-py3-none-any.whl
@@ -66,6 +68,7 @@ A convenient alternative is to let the SONiC build system configure a build envi
 ```
 python3 setup.py bdist_wheel
 ```
+Note: This command by default will not update the wheel package in target/. To specify the destination location of wheel package, use "-d" option.
 
 #### To run unit tests
 
@@ -73,6 +76,12 @@ python3 setup.py bdist_wheel
 python3 setup.py test
 ```
 
+#### To install the package on a SONiC machine
+```
+sudo pip uninstall sonic-utilities
+sudo pip install YOUR_WHEEL_PACKAGE
+```
+Note: Don't use "--force-reinstall".
 
 ### sonic-utilities-data
 

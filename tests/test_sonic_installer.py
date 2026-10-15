@@ -1,8 +1,17 @@
 import os
+import sys
+import pytest
 from contextlib import contextmanager
 from sonic_installer.main import sonic_installer
 from click.testing import CliRunner
 from unittest.mock import patch, Mock, call
+import sonic_installer.common as sonic_installer_common
+
+
+def test_run_command():
+    with pytest.raises(SystemExit) as e:
+        output = sonic_installer_common.run_command([sys.executable, "-c", "import sys; sys.exit(6)"])
+    assert e.value.code == 6
 
 @patch("sonic_installer.main.SWAPAllocator")
 @patch("sonic_installer.main.get_bootloader")
@@ -31,7 +40,7 @@ def test_install(run_command, run_command_or_raise, get_bootloader, swap, fs):
     mock_bootloader.get_binary_image_version = Mock(return_value=new_image_version)
     mock_bootloader.get_installed_images = Mock(return_value=[current_image_version])
     mock_bootloader.get_image_path = Mock(return_value=new_image_folder)
-
+    mock_bootloader.verify_image_sign = Mock(return_value=True)
     @contextmanager
     def rootfs_path_mock(path):
         yield mounted_image_folder
@@ -45,7 +54,13 @@ def test_install(run_command, run_command_or_raise, get_bootloader, swap, fs):
     print(result.output)
 
     assert result.exit_code == 0
+    mock_bootloader_verify_image_sign_fail = mock_bootloader
+    mock_bootloader_verify_image_sign_fail.verify_image_sign = Mock(return_value=False)
+    get_bootloader.return_value=mock_bootloader_verify_image_sign_fail
+    result = runner.invoke(sonic_installer.commands["install"], [sonic_image_filename, "-y"])
+    print(result.output)
 
+    assert result.exit_code != 0
     # Assert bootloader install API was called
     mock_bootloader.install_image.assert_called_with(f"./{sonic_image_filename}")
     # Assert all below commands were called, so we ensure that
@@ -71,12 +86,15 @@ def test_install(run_command, run_command_or_raise, get_bootloader, swap, fs):
         call(["sh", "-c", f"echo 'DOCKER_OPTS=\"$DOCKER_OPTS {' '.join(dockerd_opts)}\"' >> {mounted_image_folder}/etc/default/docker"]), # dockerd started with added options as host dockerd
         call(["chroot", mounted_image_folder, "/usr/lib/docker/docker.sh", "start"]),
         call(["cp", "/var/lib/sonic-package-manager/packages.json", f"{mounted_image_folder}/tmp/packages.json"]),
+        call(["mkdir", "-p", "/var/lib/sonic-package-manager/manifests"]),
+        call(["cp", "-arf", "/var/lib/sonic-package-manager/manifests",
+             f"{mounted_image_folder}/var/lib/sonic-package-manager"]),
         call(["touch", f"{mounted_image_folder}/tmp/docker.sock"]),
         call(["mount", "--bind", "/var/run/docker.sock", f"{mounted_image_folder}/tmp/docker.sock"]),
         call(["cp", f"{mounted_image_folder}/etc/resolv.conf", "/tmp/resolv.conf.backup"]),
         call(["cp", "/etc/resolv.conf", f"{mounted_image_folder}/etc/resolv.conf"]),
         call(["chroot", mounted_image_folder, "sh", "-c", "command -v sonic-package-manager"]),
-        call(["chroot", mounted_image_folder, "sonic-package-manager", "migrate", "/tmp/packages.json", "--dockerd-socket", "/tmp/docker.sock", "-y"]),
+        call(["chroot", mounted_image_folder, "sonic-package-manager", "migrate", "/tmp/packages.json", "--dockerd-socket", "/tmp/docker.sock", "-y"], capture=False),
         call(["chroot", mounted_image_folder, "/usr/lib/docker/docker.sh", "stop"], raise_exception=False),
         call(["cp", "/tmp/resolv.conf.backup", f"{mounted_image_folder}/etc/resolv.conf"], raise_exception=False),
         call(["umount", "-f", "-R", mounted_image_folder], raise_exception=False),
@@ -114,3 +132,18 @@ def test_set_fips(get_bootloader):
     mock_bootloader.get_fips = Mock(return_value=True)
     result = runner.invoke(sonic_installer.commands["get-fips"], [next_image])
     assert "FIPS is enabled" in result.output
+
+@patch("sonic_installer.common.subprocess.Popen")
+def test_runtime_exception(mock_popen):
+    """ This test covers the "sonic-installer" exception handling. """
+
+    mock_popen.return_value.returncode = 1
+    mock_popen.return_value.communicate.return_value = ('Running', 'Failed')
+
+    with pytest.raises(sonic_installer_common.SonicRuntimeException) as sre:
+        sonic_installer_common.run_command_or_raise(["test.sh"])
+
+    assert '\nSTDOUT:\nRunning' in sre.value.notes, "Invalid STDOUT"
+    assert '\nSTDERR:\nFailed' in sre.value.notes, "Invalid STDERR"
+
+    assert all(v in str(sre.value) for v in ['test.sh', 'Running', 'Failed']), "Invalid message"

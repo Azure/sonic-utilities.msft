@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2017-2021 NVIDIA CORPORATION & AFFILIATES.
+# Copyright (c) 2017-2024 NVIDIA CORPORATION & AFFILIATES.
 # Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ ENV_VARIABLE_SX_SNIFFER = 'SX_SNIFFER_ENABLE'
 ENV_VARIABLE_SX_SNIFFER_TARGET = 'SX_SNIFFER_TARGET'
 
 # SDK sniffer file path and name
-SDK_SNIFFER_TARGET_PATH = '/var/log/mellanox/sniffer/'
+SDK_SNIFFER_TARGET_PATH = '/var/log/sdk_dbg/'
 SDK_SNIFFER_FILENAME_PREFIX = 'sx_sdk_sniffer_'
 SDK_SNIFFER_FILENAME_EXT = '.pcap'
 
@@ -52,7 +52,7 @@ CONTAINER_NAME = 'syncd'
 SNIFFER_CONF_FILE = '/etc/supervisor/conf.d/mlnx_sniffer.conf'
 SNIFFER_CONF_FILE_IN_CONTAINER = CONTAINER_NAME + ':' + SNIFFER_CONF_FILE
 # Command to restart swss service
-COMMAND_RESTART_SWSS = 'systemctl restart swss.service'
+COMMAND_RESTART_SWSS = ['systemctl', 'restart', 'swss.service']
 
 
 # Global logger instance
@@ -99,12 +99,12 @@ def env_variable_delete(delete_line):
 
 
 def conf_file_copy(src, dest):
-    command = 'docker cp ' + src + ' ' + dest
+    command = ['docker', 'cp', str(src), str(dest)]
     clicommon.run_command(command)
 
 
 def conf_file_receive():
-    command = "docker exec {} bash -c 'touch {}'".format(CONTAINER_NAME, SNIFFER_CONF_FILE)
+    command = ['docker', 'exec', str(CONTAINER_NAME), 'bash', '-c', 'touch ' + str(SNIFFER_CONF_FILE)]
     clicommon.run_command(command)
     conf_file_copy(SNIFFER_CONF_FILE_IN_CONTAINER, TMP_SNIFFER_CONF_FILE)
 
@@ -134,7 +134,7 @@ def sniffer_env_variable_set(enable, env_variable_name, env_variable_string=""):
     if not ignore:
         config_file_send()
 
-    command = 'rm -rf {}'.format(TMP_SNIFFER_CONF_FILE)
+    command = ['rm', '-rf', str(TMP_SNIFFER_CONF_FILE)]
     clicommon.run_command(command)
 
     return ignore
@@ -216,7 +216,7 @@ def sdk_sniffer_enable():
                                       env_variable_string=sdk_sniffer_env_variable_string)
     if not ignore:
         err = restart_swss()
-        if err is not 0:
+        if err != 0:
             return
         click.echo('SDK sniffer is Enabled, recording file is %s.' % sdk_sniffer_filename)
     else:
@@ -229,7 +229,7 @@ def sdk_sniffer_disable():
     ignore = sniffer_env_variable_set(enable=False, env_variable_name=ENV_VARIABLE_SX_SNIFFER)
     if not ignore:
         err = restart_swss()
-        if err is not 0:
+        if err != 0:
             return
         click.echo("SDK sniffer is Disabled.")
     else:

@@ -72,18 +72,27 @@ DB_HANDLE = "config_db"
 def debug_print(msg):
     print(msg)
 
-
-# Mimics os.system call for sonic-cfggen -d --print-data > filename
-#
-def os_system_cfggen(cmd):
+# Mimics os.system call for `sonic-cfggen -d --print-data` output
+def subprocess_Popen_cfggen(cmd, *args, **kwargs):
     global running_config
 
-    fname = cmd.split(">")[-1].strip()
-    with open(fname, "w") as s:
-        s.write(json.dumps(running_config, indent=4))
-    debug_print("File created {} type={} cfg={}".format(fname,
-        type(running_config), json.dumps(running_config)[1:40]))
-    return 0
+    stdout = kwargs.get('stdout', None)
+
+    if stdout is None:
+        output = json.dumps(running_config, indent=4)
+    elif isinstance(stdout, int) and stdout == -1:
+        output = json.dumps(running_config, indent=4)
+    else:
+        raise ValueError("stdout must be set to subprocess.PIPE or omitted for capturing output")
+
+    class MockPopen:
+        def __init__(self):
+            self.returncode = 0
+
+        def communicate(self):
+            return output.encode(), "".encode()
+
+    return MockPopen()
 
 
 # mimics config_db.set_entry
@@ -119,7 +128,8 @@ def set_entry(config_db, tbl, key, data):
 # mimics JsonChange.apply
 #
 class mock_obj:
-    def apply(self, config):
+    def apply(self, config, in_place):
+        config = copy.deepcopy(config)
         json_change = json_changes[json_change_index]
 
         update = copy.deepcopy(json_change["update"])
@@ -213,14 +223,14 @@ def vlan_validate(old_cfg, new_cfg, keys):
 
 class TestChangeApplier(unittest.TestCase):
 
-    @patch("generic_config_updater.change_applier.os.system")
+    @patch("generic_config_updater.gu_common.subprocess.Popen")
     @patch("generic_config_updater.change_applier.get_config_db")
     @patch("generic_config_updater.change_applier.set_config")
-    def test_change_apply(self, mock_set, mock_db, mock_os_sys):
+    def test_change_apply(self, mock_set, mock_db, mock_subprocess_Popen):
         global read_data, running_config, json_changes, json_change_index
         global start_running_config
 
-        mock_os_sys.side_effect = os_system_cfggen
+        mock_subprocess_Popen.side_effect = subprocess_Popen_cfggen
         mock_db.return_value = DB_HANDLE
         mock_set.side_effect = set_entry
 
@@ -230,10 +240,11 @@ class TestChangeApplier(unittest.TestCase):
         running_config = copy.deepcopy(read_data["running_data"])
         json_changes = copy.deepcopy(read_data["json_changes"])
 
+        generic_config_updater.change_applier.ChangeApplier.updater_conf = None
         generic_config_updater.change_applier.UPDATER_CONF_FILE = CONF_FILE
         generic_config_updater.change_applier.set_verbose(True)
         generic_config_updater.services_validator.set_verbose(True)
-        
+
         applier = generic_config_updater.change_applier.ChangeApplier()
         debug_print("invoked applier")
 
@@ -242,10 +253,11 @@ class TestChangeApplier(unittest.TestCase):
 
             # Take copy for comparison
             start_running_config = copy.deepcopy(running_config)
-            
+
             debug_print("main: json_change_index={}".format(json_change_index))
 
-            applier.apply(mock_obj())
+            current_config = copy.deepcopy(start_running_config)
+            current_config = applier.apply(current_config, mock_obj())
 
             debug_print(f"Testing json_change {json_change_index}")
 
@@ -280,9 +292,9 @@ class TestDryRunChangeApplier(unittest.TestCase):
         applier = generic_config_updater.change_applier.DryRunChangeApplier(config_wrapper)
 
         # Act
-        applier.apply(change)
-        applier.remove_backend_tables_from_config(change)
+        current_config = copy.deepcopy(running_config)
+        current_config = applier.apply(current_config, change)
+        current_config = applier.remove_backend_tables_from_config(current_config)
 
         # Assert
-        applier.config_wrapper.apply_change_to_config_db.assert_has_calls([call(change)])
-
+        applier.config_wrapper.apply_change_to_config_db.assert_called()

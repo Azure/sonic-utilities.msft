@@ -5,10 +5,10 @@
             "allow_insecure": "false"
         },
     "RESTAPI|certs": {
-            "server_key": "/etc/sonic/credentials/restapiserver.key", 
-            "ca_crt": "/etc/sonic/credentials/AME_ROOT_CERTIFICATE.pem", 
-            "server_crt": "/etc/sonic/credentials/restapiserver.crt", 
-            "client_crt_cname": "client.restapi.sonic.gbl"
+            "server_key": "/etc/sonic/credentials/restapi.key",
+            "ca_crt": "/etc/sonic/credentials/restapi.crt",
+            "server_crt": "/etc/sonic/credentials/restapi.crt",
+            "client_crt_cname": "client.restapi.sonic"
         },
     "TELEMETRY|gnmi": {
             "client_auth": "true", 
@@ -22,5 +22,8 @@
         },
     "CONSOLE_SWITCH|console_mgmt": {
             "enabled": "no"
-        }
+        },
+    "DEVICE_METADATA|localhost": {
+        "docker_routing_config_mode": "separated"
+    }
 }

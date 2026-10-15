@@ -74,7 +74,7 @@ def summary(json):
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def syseeprom(verbose):
     """Show system EEPROM information"""
-    cmd = "sudo decode-syseeprom -d"
+    cmd = ['sudo', 'decode-syseeprom', '-d']
     clicommon.run_command(cmd, display_cmd=verbose)
 
 
@@ -85,13 +85,13 @@ def syseeprom(verbose):
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def psustatus(index, json, verbose):
     """Show PSU status information"""
-    cmd = "psushow -s"
+    cmd = ['psushow', '-s']
 
     if index >= 0:
-        cmd += " -i {}".format(index)
+        cmd += ['-i', str(index)]
 
     if json:
-        cmd += " -j"
+        cmd += ["-j"]
 
     clicommon.run_command(cmd, display_cmd=verbose)
 
@@ -105,9 +105,9 @@ def ssdhealth(device, verbose, vendor):
     """Show SSD Health information"""
     if not device:
         device = os.popen("lsblk -o NAME,TYPE -p | grep disk").readline().strip().split()[0]
-    cmd = "sudo ssdutil -d " + device
-    options = " -v" if verbose else ""
-    options += " -e" if vendor else ""
+    cmd = ['sudo', 'ssdutil', '-d', str(device)]
+    options = ["-v"] if verbose else []
+    options += ["-e"] if vendor else []
     clicommon.run_command(cmd + options, display_cmd=verbose)
 
 
@@ -116,9 +116,9 @@ def ssdhealth(device, verbose, vendor):
 @click.option('-c', '--check', is_flag=True, help="Check the platfome pcie device")
 def pcieinfo(check, verbose):
     """Show Device PCIe Info"""
-    cmd = "sudo pcieutil show"
+    cmd = ['sudo', 'pcieutil', 'show']
     if check:
-        cmd = "sudo pcieutil check"
+        cmd = ['sudo', 'pcieutil', 'check']
     clicommon.run_command(cmd, display_cmd=verbose)
 
 
@@ -126,7 +126,7 @@ def pcieinfo(check, verbose):
 @platform.command()
 def fan():
     """Show fan status information"""
-    cmd = 'fanshow'
+    cmd = ['fanshow']
     clicommon.run_command(cmd)
 
 
@@ -134,8 +134,25 @@ def fan():
 @platform.command()
 def temperature():
     """Show device temperature information"""
-    cmd = 'tempershow'
+    cmd = ['tempershow']
     clicommon.run_command(cmd)
+
+
+# 'voltage' subcommand ("show platform voltage")
+@platform.command()
+def voltage():
+    """Show device voltage information"""
+    cmd = ["sensorshow", "-t", "voltage"]
+    clicommon.run_command(cmd)
+
+
+# 'current' subcommand ("show platform current")
+@platform.command()
+def current():
+    """Show device current information"""
+    cmd = ["sensorshow", "-t", "current"]
+    clicommon.run_command(cmd)
+
 
 # 'firmware' subcommand ("show platform firmware")
 @platform.command(
@@ -148,9 +165,9 @@ def temperature():
 @click.argument('args', nargs=-1, type=click.UNPROCESSED)
 def firmware(args):
     """Show firmware information"""
-    cmd = "sudo fwutil show {}".format(" ".join(args))
+    cmd = ["sudo", "fwutil", "show"] + list(args)
 
     try:
-        subprocess.check_call(cmd, shell=True)
+        subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)

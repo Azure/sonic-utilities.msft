@@ -1,7 +1,6 @@
 import sys
 import os
 import traceback
-
 import show.main as show
 import clear.main as clear
 
@@ -168,7 +167,7 @@ class TestIntfstat(object):
         result = runner.invoke(show.cli.commands["interfaces"].commands["counters"].commands["rif"], ["Ethernet20"])
         print(result.output)
         # remove the counters snapshot
-        show.run_command("intfstat -D")
+        show.run_command(["intfstat", "-D"])
         assert 'Last cached time was' in result.output.split('\n')[0]
         assert show_interfaces_counters_rif_clear_single_intf in result.output
 
@@ -180,7 +179,7 @@ class TestIntfstat(object):
         result = runner.invoke(show.cli.commands["interfaces"].commands["counters"].commands["rif"], [])
         print(result.stdout)
         # remove the counters snapshot
-        show.run_command("intfstat -D")
+        show.run_command(["intfstat", "-D"])
         assert 'Last cached time was' in result.output.split('\n')[0]
         assert show_single_interface_check_all_clear in result.output
 
@@ -192,7 +191,7 @@ class TestIntfstat(object):
         result = runner.invoke(show.cli.commands["interfaces"].commands["counters"].commands["rif"], [])
         print(result.stdout)
         # remove the counters snapshot
-        show.run_command("intfstat -D")
+        show.run_command(["intfstat", "-D"])
         assert 'Last cached time was' in result.output.split('\n')[0]
         assert show_interfaces_counters_rif_clear in result.output
 

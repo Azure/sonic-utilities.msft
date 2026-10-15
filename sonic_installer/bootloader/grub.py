@@ -51,19 +51,19 @@ class GrubBootloader(OnieInstallerBootloader):
 
     def set_default_image(self, image):
         images = self.get_installed_images()
-        command = 'grub-set-default --boot-directory=' + HOST_PATH + ' ' + str(images.index(image))
+        command = ['grub-set-default', '--boot-directory=' + HOST_PATH, str(images.index(image))]
         run_command(command)
         return True
 
     def set_next_image(self, image):
         images = self.get_installed_images()
-        command = 'grub-reboot --boot-directory=' + HOST_PATH + ' ' + str(images.index(image))
+        command = ['grub-reboot', '--boot-directory=' + HOST_PATH, str(images.index(image))]
         run_command(command)
         return True
 
     def install_image(self, image_path):
-        run_command("bash " + image_path)
-        run_command('grub-set-default --boot-directory=' + HOST_PATH + ' 0')
+        run_command(["bash", image_path])
+        run_command(['grub-set-default', '--boot-directory=' + HOST_PATH, '0'])
 
     def remove_image(self, image):
         click.echo('Updating GRUB...')
@@ -82,7 +82,7 @@ class GrubBootloader(OnieInstallerBootloader):
         subprocess.call(['rm','-rf', HOST_PATH + '/' + image_dir])
         click.echo('Done')
 
-        run_command('grub-set-default --boot-directory=' + HOST_PATH + ' 0')
+        run_command(['grub-set-default', '--boot-directory=' + HOST_PATH, '0'])
         click.echo('Image removed')
 
     def get_linux_cmdline(self, image):
@@ -152,6 +152,44 @@ class GrubBootloader(OnieInstallerBootloader):
 
         # Check if platform is inside image's target platforms
         return self.platform_in_platforms_asic(platform, image_path)
+
+    def is_secure_upgrade_image_verification_supported(self):
+
+        check_if_verification_is_enabled_and_supported_code = '''
+        SECURE_UPGRADE_ENABLED=0
+        #Disabling the check for cisco-8000 platforms as platform-side support is not ready yet. This will be removed once platform
+        #support is added.
+        ASIC_TYPE=$(sonic-cfggen -y /etc/sonic/sonic_version.yml -v asic_type)
+        if [ -d "/sys/firmware/efi/efivars" ] && [[ ${ASIC_TYPE} != *"cisco-8000"* ]]; then
+            if ! [ -n "$(ls -A /sys/firmware/efi/efivars 2>/dev/null)" ]; then
+                mount -t efivarfs none /sys/firmware/efi/efivars 2>/dev/null
+            fi
+            SECURE_UPGRADE_ENABLED=$(mokutil --sb-state 2>/dev/null | grep -c "enabled")
+        else
+            echo "efi not supported - exiting without verification"
+            exit 1
+        fi
+
+        if [ ${SECURE_UPGRADE_ENABLED} -eq 0 ]; then
+            echo "secure boot not enabled - exiting without image verification"
+            exit 1
+        fi
+        exit 0
+        '''
+        verification_result = subprocess.run(['bash', '-c', check_if_verification_is_enabled_and_supported_code], capture_output=True)
+        click.echo(verification_result.stdout.decode())
+        return verification_result.returncode == 0
+
+    def verify_image_sign(self, image_path):
+        click.echo('Verifying image signature')
+        verification_script_name = 'verify_image_sign.sh'
+        script_path = os.path.join('/usr', 'local', 'bin', verification_script_name)
+        if not os.path.exists(script_path):
+            click.echo("Unable to find verification script in path " + script_path)
+            return False
+        verification_result = subprocess.run([script_path, image_path], capture_output=True)
+        click.echo(verification_result.stdout.decode())
+        return verification_result.returncode == 0
 
     @classmethod
     def detect(cls):

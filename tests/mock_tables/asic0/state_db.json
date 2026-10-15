@@ -256,7 +256,12 @@
     "FABRIC_PORT_TABLE|PORT0" : {
         "STATUS": "up",
         "REMOTE_MOD": "0",
-        "REMOTE_PORT": "79"
+        "REMOTE_PORT": "79",
+        "OLD_RX_RATE_AVG": "0",
+        "OLD_RX_DATA": "0",
+        "OLD_TX_RATE_AVG": "19.8",
+        "OLD_TX_DATA": "18490000000",
+        "LAST_TIME": "1676672799"
     },
     "FABRIC_PORT_TABLE|PORT1" : {
         "STATUS": "down"
@@ -264,7 +269,12 @@
     "FABRIC_PORT_TABLE|PORT2" : {
         "STATUS": "up",
         "REMOTE_MOD": "0",
-        "REMOTE_PORT": "94"
+        "REMOTE_PORT": "94",
+        "OLD_RX_RATE_AVG": "0",
+        "OLD_RX_DATA": "0",
+        "OLD_TX_RATE_AVG": "39.8",
+        "OLD_TX_DATA": "24490000000",
+        "LAST_TIME": "1676672799"
     },
     "FABRIC_PORT_TABLE|PORT3" : {
         "STATUS": "down"
@@ -272,7 +282,12 @@
     "FABRIC_PORT_TABLE|PORT4" : {
         "STATUS": "up",
         "REMOTE_MOD": "0",
-        "REMOTE_PORT": "85"
+        "REMOTE_PORT": "85",
+        "OLD_RX_RATE_AVG": "0",
+        "OLD_RX_DATA": "0",
+        "OLD_TX_RATE_AVG": "39.8",
+        "OLD_TX_DATA": "24490000000",
+        "LAST_TIME": "1676672799"
     },
     "FABRIC_PORT_TABLE|PORT5" : {
         "STATUS": "down"
@@ -280,17 +295,86 @@
     "FABRIC_PORT_TABLE|PORT6" : {
         "STATUS": "up",
         "REMOTE_MOD": "0",
-        "REMOTE_PORT": "84"
+        "REMOTE_PORT": "84",
+        "OLD_RX_RATE_AVG": "0",
+        "OLD_RX_DATA": "0",
+        "OLD_TX_RATE_AVG": "39.3",
+        "OLD_TX_DATA": "24170000000",
+        "LAST_TIME": "1676672799"
     },
     "FABRIC_PORT_TABLE|PORT7" : {
         "STATUS": "up",
         "REMOTE_MOD": "0",
-        "REMOTE_PORT": "93"
+        "REMOTE_PORT": "93",
+        "OLD_RX_RATE_AVG": "0",
+        "OLD_RX_DATA": "0",
+        "OLD_TX_RATE_AVG": "39.3",
+        "OLD_TX_DATA": "24190000000",
+        "LAST_TIME": "1676672799"
+    },
+    "CHASSIS_MIDPLANE_TABLE|LINE-CARD0": {
+        "ip_address": "127.0.0.1",
+        "access": "True"
+    },
+    "CHASSIS_MIDPLANE_TABLE|LINE-CARD1": {
+        "ip_address": "127.0.0.1",
+        "access": "True"
+    },
+    "CHASSIS_MIDPLANE_TABLE|LINE-CARD2": {
+        "ip_address": "127.0.0.1",
+        "access": "False"
     },
     "ACL_TABLE_TABLE|DATAACL_5" : {
         "status": "Active"
     },
     "ACL_RULE_TABLE|DATAACL_5|RULE_1" : {
         "status": "Active"
+    },
+    "FABRIC_CAPACITY_TABLE|FABRIC_CAPACITY_DATA" : {
+        "fabric_capacity": "221580",
+        "missing_capacity": "132948",
+        "operating_links": "5",
+        "number_of_links": "8",
+        "warning_threshold": "100"
+    },
+    "PORT_CAPACITY_TABLE|PORT_CAPACITY_DATA" : {
+        "capacity": "80000"
+    },
+    "BFD_SESSION_TABLE|default|default|10.0.1.1": {
+        "state": "DOWN",
+        "type": "async_active",
+        "local_addr" : "10.0.0.1",
+        "tx_interval" :"300",
+        "rx_interval" : "500",
+        "multiplier" : "3",
+        "multihop": "true"
+    },
+    "BFD_SESSION_TABLE|default|Ethernet12|10.0.2.1": {
+        "state": "UP",
+        "type": "async_active",
+        "local_addr" : "10.0.0.1",
+        "tx_interval" :"200",
+        "rx_interval" : "600",
+        "multiplier" : "3",
+        "multihop": "false",
+        "local_discriminator": "88"
+    },
+    "BFD_SESSION_TABLE|default|default|2000::10:1": {
+        "state": "UP",
+        "type": "async_active",
+        "local_addr" : "2000::1",
+        "tx_interval" :"100",
+        "rx_interval" : "700",
+        "multiplier" : "3",
+        "multihop": "false"
+    },
+    "BFD_SESSION_TABLE|VrfRed|default|10.0.1.1": {
+        "state": "UP",
+        "type": "async_active",
+        "local_addr" : "10.0.0.1",
+        "tx_interval" :"400",
+        "rx_interval" : "500",
+        "multiplier" : "5",
+        "multihop": "false"
     }
 }

@@ -6,6 +6,7 @@ from dump.helper import verbose_print
 from swsscommon.swsscommon import SonicV2Connector, SonicDBConfig
 from sonic_py_common import multi_asic
 from utilities_common.constants import DEFAULT_NAMESPACE
+from utilities_common.general import load_db_config
 
 # Constants
 CONN = "conn"
@@ -242,18 +243,16 @@ class ConnectionPool:
         self.cache = dict()  # Pool of SonicV2Connector objects
 
     def initialize_connector(self, ns):
-        if not SonicDBConfig.isInit():
-            if multi_asic.is_multi_asic():
-                SonicDBConfig.load_sonic_global_db_config()
-            else:
-                SonicDBConfig.load_sonic_db_config()
+        load_db_config()
         return SonicV2Connector(namespace=ns, use_unix_socket_path=True)
 
     def get(self, db_name, ns, update=False):
         """ Returns a SonicV2Connector Object and caches it for further requests """
         if ns not in self.cache:
             self.cache[ns] = {}
+        if CONN not in self.cache[ns]:
             self.cache[ns][CONN] = self.initialize_connector(ns)
+        if CONN_TO not in self.cache[ns]:
             self.cache[ns][CONN_TO] = set()
         if update or db_name not in self.cache[ns][CONN_TO]:
             self.cache[ns][CONN].connect(db_name)

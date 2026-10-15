@@ -8,8 +8,8 @@ import show.main as show
 from .utils import get_result_and_return_code
 from utilities_common.cli import UserCache
 
-root_path = os.path.dirname(os.path.abspath(__file__))
-modules_path = os.path.dirname(root_path)
+test_path = os.path.dirname(os.path.abspath(__file__))
+modules_path = os.path.dirname(test_path)
 scripts_path = os.path.join(modules_path, "scripts")
 
 intf_counters_before_clear = """\
@@ -40,6 +40,27 @@ intf_fec_counters = """\
 Ethernet0        D     130,402             3                 4
 Ethernet4      N/A     110,412             1                 0
 Ethernet8      N/A     100,317             0                 0
+"""
+
+intf_fec_counters_fec_hist = """\
+Symbol Errors Per Codeword      Codewords
+----------------------------  -----------
+BIN0                              1000000
+BIN1                               900000
+BIN2                               800000
+BIN3                               700000
+BIN4                               600000
+BIN5                               500000
+BIN6                               400000
+BIN7                               300000
+BIN8                                    0
+BIN9                                    0
+BIN10                                   0
+BIN11                                   0
+BIN12                                   0
+BIN13                                   0
+BIN14                                   0
+BIN15                                   0
 """
 
 intf_fec_counters_period = """\
@@ -140,6 +161,16 @@ Ethernet-BP4        U        8  0.00 B/s    0.00/s      0.00%         0     1,00
 Reminder: Please execute 'show interface counters -d all' to include internal links
 
 """
+
+multi_asic_intf_counters_bp0 = """\
+       IFACE    STATE    RX_OK    RX_BPS    RX_PPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_PPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
+------------  -------  -------  --------  --------  ---------  --------  --------  --------  -------  --------  --------  ---------  --------  --------  --------
+Ethernet-BP0        U        6  0.00 B/s    0.00/s      0.00%         0     1,000       N/A       60  0.00 B/s    0.00/s      0.00%       N/A       N/A       N/A
+
+Reminder: Please execute 'show interface counters -d all' to include internal links
+
+"""  # noqa: E501
+
 multi_asic_intf_counters_period = """\
 The rates are calculated within 3 seconds period
     IFACE    STATE    RX_OK    RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
@@ -192,7 +223,6 @@ Ethernet-BP260        U        0  0.00 B/s      0.00%         0         0       
 Reminder: Please execute 'show interface counters -d all' to include internal links
 """
 
-
 intf_invalid_asic_error = """ValueError: Unknown Namespace asic99"""
 
 intf_counters_detailed = """\
@@ -235,6 +265,51 @@ Broadcast Packets Transmitted.................. 0
 Time Since Counters Last Cleared............... None
 """
 
+intf_counters_on_sup = """\
+       IFACE    STATE    RX_OK     RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK     TX_BPS    TX_UTIL\
+    TX_ERR    TX_DRP    TX_OVR
+------------  -------  -------  ---------  ---------  --------  --------  --------  -------  ---------  ---------\
+  --------  --------  --------
+ Ethernet1/1        U      100  10.00 B/s      0.00%         0         0         0      100  10.00 B/s      0.00%\
+         0         0         0
+ Ethernet2/1        U      100  10.00 B/s      0.00%         0         0         0      100  10.00 B/s      0.00%\
+         0         0         0
+Ethernet11/1        U      100  10.00 B/s      0.00%         0         0         0      100  10.00 B/s      0.00%\
+         0         0         0
+"""
+
+intf_counters_on_sup_no_counters = "Linecard Counter Table is not available.\n"
+
+intf_counters_on_sup_partial_lc = "Not all linecards have published their counter values.\n"
+
+intf_counters_on_sup_na = """\
+       IFACE    STATE    RX_OK     RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK     TX_BPS    TX_UTIL\
+    TX_ERR    TX_DRP    TX_OVR
+------------  -------  -------  ---------  ---------  --------  --------  --------  -------  ---------  ---------\
+  --------  --------  --------
+ Ethernet1/1        U      100  10.00 B/s      0.00%         0         0         0      100  10.00 B/s      0.00%\
+         0         0         0
+ Ethernet2/1        U      100  10.00 B/s      0.00%         0         0         0      100  10.00 B/s      0.00%\
+         0         0         0
+Ethernet11/1      N/A      N/A        N/A        N/A       N/A       N/A       N/A      N/A        N/A        N/A\
+       N/A       N/A       N/A
+"""
+
+intf_counters_on_sup_packet_chassis = """\
+       IFACE    STATE    RX_OK        RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK        TX_BPS\
+    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
+------------  -------  -------  ------------  ---------  --------  --------  --------  -------  ------------\
+  ---------  --------  --------  --------
+Ethernet-BP0      N/A        8  2000.00 MB/s        N/A        10       100       N/A       10  1500.00 MB/s\
+        N/A       N/A       N/A       N/A
+Ethernet-BP4      N/A        4   204.80 KB/s        N/A         0     1,000       N/A       40   204.85 KB/s\
+        N/A       N/A       N/A       N/A
+Ethernet-BP8      N/A        6  1350.00 KB/s        N/A       100        10       N/A       60    13.37 MB/s\
+        N/A       N/A       N/A       N/A
+
+Reminder: Please execute 'show interface counters -d all' to include internal links
+"""
+
 TEST_PERIOD = 3
 
 
@@ -258,6 +333,8 @@ class TestPortStat(object):
         print("SETUP")
         os.environ["PATH"] += os.pathsep + scripts_path
         os.environ["UTILITIES_UNIT_TESTING"] = "2"
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.environ["UTILITIES_UNIT_TESTING_IS_PACKET_CHASSIS"] = "0"
         remove_tmp_cnstat_file()
 
     def test_show_intf_counters(self):
@@ -269,7 +346,7 @@ class TestPortStat(object):
         assert result.exit_code == 0
         assert result.output == intf_counters_before_clear
 
-        return_code, result = get_result_and_return_code('portstat')
+        return_code, result = get_result_and_return_code(['portstat'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -278,14 +355,14 @@ class TestPortStat(object):
     def test_show_intf_counters_ethernet4(self):
         runner = CliRunner()
         result = runner.invoke(
-            show.cli.commands["interfaces"].commands["counters"], ["-i Ethernet4"])
+            show.cli.commands["interfaces"].commands["counters"], ["-i", "Ethernet4"])
         print(result.exit_code)
         print(result.output)
         assert result.exit_code == 0
         assert result.output == intf_counters_ethernet4
 
         return_code, result = get_result_and_return_code(
-            'portstat -i Ethernet4')
+            ['portstat', '-i', 'Ethernet4'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -300,7 +377,7 @@ class TestPortStat(object):
         assert result.exit_code == 0
         assert result.output == intf_counters_all
 
-        return_code, result = get_result_and_return_code('portstat -a')
+        return_code, result = get_result_and_return_code(['portstat', '-a'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -315,11 +392,20 @@ class TestPortStat(object):
         assert result.exit_code == 0
         assert result.output == intf_fec_counters
 
-        return_code, result = get_result_and_return_code('portstat -f')
+        return_code, result = get_result_and_return_code(['portstat', '-f'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == intf_fec_counters
+
+    def test_show_intf_counters_fec_histogram(self):
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"].commands["fec-histogram"], ["Ethernet0"])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_fec_counters_fec_hist
 
     def test_show_intf_fec_counters_period(self):
         runner = CliRunner()
@@ -331,7 +417,7 @@ class TestPortStat(object):
         assert result.output == intf_fec_counters_period
 
         return_code, result = get_result_and_return_code(
-            'portstat -f -p {}'.format(TEST_PERIOD))
+            ['portstat', '-f', '-p', str(TEST_PERIOD)])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -349,7 +435,7 @@ class TestPortStat(object):
         assert result.output == intf_counters_period
 
         return_code, result = get_result_and_return_code(
-            'portstat -p {}'.format(TEST_PERIOD))
+            ['portstat', '-p', str(TEST_PERIOD)])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -364,7 +450,7 @@ class TestPortStat(object):
         assert result.exit_code == 0
         assert result.output == intf_counters_detailed
 
-        return_code, result = get_result_and_return_code('portstat -l -i Ethernet4')
+        return_code, result = get_result_and_return_code(['portstat', '-l', '-i', 'Ethernet4'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -378,7 +464,7 @@ class TestPortStat(object):
         assert result.exit_code == 0
         assert result.output.rstrip() == clear_counter
 
-        return_code, result = get_result_and_return_code('portstat -c')
+        return_code, result = get_result_and_return_code(['portstat', '-c'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -392,11 +478,134 @@ class TestPortStat(object):
         assert result.exit_code == 0
         verify_after_clear(result.output, intf_counter_after_clear)
 
-        return_code, result = get_result_and_return_code('portstat')
+        return_code, result = get_result_and_return_code(['portstat'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         verify_after_clear(result, intf_counter_after_clear)
+
+    def test_show_intf_counters_on_sup(self):
+        remove_tmp_cnstat_file()
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "1"
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_on_sup
+
+        return_code, result = get_result_and_return_code(['portstat'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result == intf_counters_on_sup
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+
+    def test_show_intf_counters_on_sup_no_counters(self):
+        remove_tmp_cnstat_file()
+        os.system("cp {} /tmp/".format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp {} {}".format(os.path.join(test_path, "portstat_db/on_sup_no_counters/chassis_state_db.json"),
+                                    os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "1"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_on_sup_no_counters
+
+        return_code, result = get_result_and_return_code(['portstat'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result == intf_counters_on_sup_no_counters
+
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.system("cp /tmp/chassis_state_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+
+    def test_show_intf_counters_on_sup_partial_lc(self):
+        remove_tmp_cnstat_file()
+        os.system("cp {} /tmp/".format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp {} {}".format(os.path.join(test_path, "portstat_db/on_sup_partial_lc/chassis_state_db.json"),
+                                    os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "1"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_on_sup_partial_lc
+
+        return_code, result = get_result_and_return_code(['portstat'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result == intf_counters_on_sup_partial_lc
+
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.system("cp /tmp/chassis_state_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+
+    def test_show_intf_counters_on_sup_na(self):
+        remove_tmp_cnstat_file()
+        os.system("cp {} /tmp/".format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp {} {}".format(os.path.join(test_path, "portstat_db/on_sup_na/chassis_state_db.json"),
+                                    os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "1"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_on_sup_na
+
+        return_code, result = get_result_and_return_code(['portstat'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result == intf_counters_on_sup_na
+
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.system("cp /tmp/chassis_state_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+
+    def test_show_intf_counters_on_sup_packet_chassis(self):
+        os.system("cp {} /tmp/".format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp {} {}".format(os.path.join(test_path, "portstat_db/on_sup_packet_chassis/chassis_state_db.json"),
+                                    os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp {} /tmp/".format(os.path.join(test_path, "mock_tables/counters_db.json")))
+        os.system("cp {} {}".format(os.path.join(test_path, "portstat_db/on_sup_packet_chassis/counters_db.json"),
+                                    os.path.join(test_path, "mock_tables/counters_db.json")))
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "1"
+        os.environ["UTILITIES_UNIT_TESTING_IS_PACKET_CHASSIS"] = "1"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], ["-dall"])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_on_sup_packet_chassis
+
+        return_code, result = get_result_and_return_code(['portstat', '-s', 'all'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result.rstrip() == intf_counters_on_sup_packet_chassis.rstrip()
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.environ["UTILITIES_UNIT_TESTING_IS_PACKET_CHASSIS"] = "0"
+        os.system("cp /tmp/chassis_state_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp /tmp/counters_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/counters_db.json")))
 
     @classmethod
     def teardown_class(cls):
@@ -404,7 +613,13 @@ class TestPortStat(object):
         os.environ["PATH"] = os.pathsep.join(
             os.environ["PATH"].split(os.pathsep)[:-1])
         os.environ["UTILITIES_UNIT_TESTING"] = "0"
+        os.environ["UTILITIES_UNIT_TESTING_IS_SUP"] = "0"
+        os.environ["UTILITIES_UNIT_TESTING_IS_PACKET_CHASSIS"] = "0"
         remove_tmp_cnstat_file()
+        os.system("cp /tmp/chassis_state_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/chassis_state_db.json")))
+        os.system("cp /tmp/counters_db.json {}"
+                  .format(os.path.join(test_path, "mock_tables/counters_db.json")))
 
 
 class TestMultiAsicPortStat(object):
@@ -417,21 +632,21 @@ class TestMultiAsicPortStat(object):
         remove_tmp_cnstat_file()
 
     def test_multi_show_intf_counters(self):
-        return_code, result = get_result_and_return_code('portstat')
+        return_code, result = get_result_and_return_code(['portstat'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_external_intf_counters
 
     def test_multi_show_intf_counters_all(self):
-        return_code, result = get_result_and_return_code('portstat -s all')
+        return_code, result = get_result_and_return_code(['portstat', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_all_intf_counters
 
     def test_multi_show_intf_counters_asic(self):
-        return_code, result = get_result_and_return_code('portstat -n asic0')
+        return_code, result = get_result_and_return_code(['portstat', '-n', 'asic0'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -439,21 +654,21 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_asic_all(self):
         return_code, result = get_result_and_return_code(
-            'portstat -n asic0 -s all')
+            ['portstat', '-n', 'asic0', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_intf_counters_asic0
 
     def test_multi_show_external_intf_counters_printall(self):
-        return_code, result = get_result_and_return_code('portstat -a')
+        return_code, result = get_result_and_return_code(['portstat', '-a'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_external_intf_counters_printall
 
     def test_multi_show_intf_counters_printall(self):
-        return_code, result = get_result_and_return_code('portstat -a -s all')
+        return_code, result = get_result_and_return_code(['portstat', '-a', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -461,7 +676,7 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_printall_asic(self):
         return_code, result = get_result_and_return_code(
-            'portstat --a -n asic0')
+            ['portstat', '--a', '-n', 'asic0'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -469,15 +684,23 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_printall_asic_all(self):
         return_code, result = get_result_and_return_code(
-            'portstat -a -n asic0 -s all')
+            ['portstat', '-a', '-n', 'asic0', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_intf_counters_asic0_printall
 
+    def test_multi_show_intf_counters_bp0(self):
+        return_code, result = get_result_and_return_code(
+            ['portstat', '-a', '-i', 'Ethernet-BP0', '-s', 'all'])
+        print("return_code: {}".format(return_code))
+        print("result = {}".format(result))
+        assert return_code == 0
+        assert result == multi_asic_intf_counters_bp0
+
     def test_multi_show_intf_counters_period(self):
         return_code, result = get_result_and_return_code(
-            'portstat -p {}'.format(TEST_PERIOD))
+            ['portstat', '-p', str(TEST_PERIOD)])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -485,7 +708,7 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_period_all(self):
         return_code, result = get_result_and_return_code(
-            'portstat -p {} -s all'.format(TEST_PERIOD))
+            ['portstat', '-p', str(TEST_PERIOD), '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -493,7 +716,7 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_period_asic(self):
         return_code, result = get_result_and_return_code(
-            'portstat -p {} -n asic0'.format(TEST_PERIOD))
+            ['portstat', '-p', str(TEST_PERIOD), '-n', 'asic0'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
@@ -501,28 +724,28 @@ class TestMultiAsicPortStat(object):
 
     def test_multi_show_intf_counters_period_asic_all(self):
         return_code, result = get_result_and_return_code(
-            'portstat -p {} -n asic0 -s all'.format(TEST_PERIOD))
+            ['portstat', '-p', str(TEST_PERIOD), '-n', 'asic0', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result == multi_asic_intf_counter_period_asic_all
 
     def test_multi_asic_clear_intf_counters(self):
-        return_code, result = get_result_and_return_code('portstat -c')
+        return_code, result = get_result_and_return_code(['portstat', '-c'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         assert result.rstrip() == clear_counter
 
         # check stats for all the interfaces are cleared
-        return_code, result = get_result_and_return_code('portstat -s all')
+        return_code, result = get_result_and_return_code(['portstat', '-s', 'all'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 0
         verify_after_clear(result, mutli_asic_intf_counters_after_clear)
 
     def test_multi_asic_invalid_asic(self):
-        return_code, result = get_result_and_return_code('portstat -n asic99')
+        return_code, result = get_result_and_return_code(['portstat', '-n', 'asic99'])
         print("return_code: {}".format(return_code))
         print("result = {}".format(result))
         assert return_code == 1

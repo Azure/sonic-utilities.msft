@@ -5,7 +5,9 @@ import ipaddress
 import subprocess
 
 import utilities_common.cli as clicommon
+import utilities_common.multi_asic as multi_asic_util
 from sonic_py_common import logger
+from sonic_py_common import multi_asic
 from syslog_util import common as syslog_common
 
 
@@ -410,8 +412,8 @@ def add(db, server_ip_address, source, port, vrf):
 
     try:
         add_entry(db.cfgdb, table, key, data)
-        clicommon.run_command("systemctl reset-failed rsyslog-config rsyslog", display_cmd=True)
-        clicommon.run_command("systemctl restart rsyslog-config", display_cmd=True)
+        clicommon.run_command(['systemctl', 'reset-failed', 'rsyslog-config', 'rsyslog'], display_cmd=True)
+        clicommon.run_command(['systemctl', 'restart', 'rsyslog-config'], display_cmd=True)
         log.log_notice("Added remote syslog logging: server={},source={},port={},vrf={}".format(
             server_ip_address,
             data.get(SYSLOG_SOURCE, "N/A"),
@@ -442,8 +444,8 @@ def delete(db, server_ip_address):
 
     try:
         del_entry(db.cfgdb, table, key)
-        clicommon.run_command("systemctl reset-failed rsyslog-config rsyslog", display_cmd=True)
-        clicommon.run_command("systemctl restart rsyslog-config", display_cmd=True)
+        clicommon.run_command(['systemctl', 'reset-failed', 'rsyslog-config', 'rsyslog'], display_cmd=True)
+        clicommon.run_command(['systemctl', 'restart', 'rsyslog-config'], display_cmd=True)
         log.log_notice("Removed remote syslog logging: server={}".format(server_ip_address))
     except Exception as e:
         log.log_error("Failed to remove remote syslog logging: {}".format(str(e)))
@@ -457,17 +459,186 @@ def delete(db, server_ip_address):
 def rate_limit_host(db, interval, burst):
     """ Configure syslog rate limit for host """
     syslog_common.rate_limit_validator(interval, burst)
-    syslog_common.save_rate_limit_to_db(db, None, interval, burst, log)
+    syslog_common.save_rate_limit_to_db(db.cfgdb, None, interval, burst, log)
 
 
 @syslog.command("rate-limit-container")
 @click.argument("service_name", required=True)
 @click.option("-i", "--interval", help="Configures syslog rate limit interval in seconds for specified containers", type=click.IntRange(0, 2147483647))
 @click.option("-b", "--burst", help="Configures syslog rate limit burst in number of messages for specified containers", type=click.IntRange(0, 2147483647))
+@click.option('--namespace', '-n', 'namespace', default=None, 
+              type=click.Choice(multi_asic_util.multi_asic_ns_choices() + ['default']), 
+              show_default=True, help='Namespace name or all')
 @clicommon.pass_db
-def rate_limit_container(db, service_name, interval, burst):
+def rate_limit_container(db, service_name, interval, burst, namespace):
     """ Configure syslog rate limit for containers """
     syslog_common.rate_limit_validator(interval, burst)
-    feature_data = db.cfgdb.get_table(syslog_common.FEATURE_TABLE)
+    features = db.cfgdb.get_table(syslog_common.FEATURE_TABLE)
+    syslog_common.service_validator(features, service_name)
+    
+    global_feature_data, per_ns_feature_data = syslog_common.extract_feature_data(features)
+    if not namespace:
+        # for all namespaces
+        for namespace, cfg_db in db.cfgdb_clients.items():
+            if namespace == multi_asic.DEFAULT_NAMESPACE:
+                feature_data = global_feature_data
+            else:
+                feature_data = per_ns_feature_data
+            if service_name and service_name not in feature_data:
+                continue
+            syslog_common.service_validator(feature_data, service_name)
+            syslog_common.save_rate_limit_to_db(cfg_db, service_name, interval, burst, log)
+        return
+    elif namespace == 'default':
+        # for default/global namespace only
+        namespace = multi_asic.DEFAULT_NAMESPACE
+        feature_data = global_feature_data
+    else:
+        # for a specific namespace
+        feature_data = per_ns_feature_data
+    
     syslog_common.service_validator(feature_data, service_name)
-    syslog_common.save_rate_limit_to_db(db, service_name, interval, burst, log)
+    syslog_common.save_rate_limit_to_db(db.cfgdb_clients[namespace], service_name, interval, burst, log)
+
+
+@syslog.group(
+    name="rate-limit-feature",
+    cls=clicommon.AliasedGroup
+)
+def rate_limit_feature():
+    """ Configure syslog rate limit feature """
+    pass
+
+
+def get_feature_names_to_proceed(db, service_name, namespace):
+    """Get feature name list to be proceed by "config syslog rate-limit-feature enable" and
+    "config syslog rate-limit-feature disable" CLIs
+
+    Args:
+        db (object): Db object
+        service_name (str): Nullable service name to be enable/disable
+        namespace (str): Namespace provided by user
+
+    Returns:
+        list: A list of feature name
+    """
+    features = db.cfgdb.get_table(syslog_common.FEATURE_TABLE)
+    if service_name:
+        syslog_common.service_validator(features, service_name)
+        
+    global_feature_data, per_ns_feature_data = syslog_common.extract_feature_data(features)
+    if not namespace:
+        if not service_name:
+            feature_list = [feature_name for feature_name in global_feature_data.keys()]
+            if multi_asic.is_multi_asic():
+                asic_count = multi_asic.get_num_asics()
+                for i in range(asic_count):
+                    feature_list.extend([f'{feature_name}{i}' for feature_name in per_ns_feature_data.keys()])
+        else:
+            feature_config = features[service_name]
+            feature_list = []
+            if feature_config[syslog_common.FEATURE_HAS_GLOBAL_SCOPE].lower() == 'true':
+                feature_list.append(service_name)
+            
+            if multi_asic.is_multi_asic():
+                if feature_config[syslog_common.FEATURE_HAS_PER_ASIC_SCOPE].lower() == 'true':
+                    asic_count = multi_asic.get_num_asics()
+                    for i in range(asic_count):
+                        feature_list.append(multi_asic.get_container_name_from_asic_id(service_name, i))
+    elif namespace == 'default':
+        if not service_name:
+            feature_list = [feature_name for feature_name in global_feature_data.keys()]
+        else:
+            syslog_common.service_validator(global_feature_data, service_name)
+            feature_list = [service_name]
+    else:
+        asic_num = multi_asic.get_asic_id_from_name(namespace)
+        if not service_name:
+            feature_list = [multi_asic.get_container_name_from_asic_id(feature_name, asic_num) for feature_name in per_ns_feature_data.keys()]
+        else:
+            syslog_common.service_validator(per_ns_feature_data, service_name)
+            feature_list = [multi_asic.get_container_name_from_asic_id(service_name, asic_num)]
+    return feature_list
+
+
+@rate_limit_feature.command("enable")
+@click.argument("service_name", required=False)
+@click.option('--namespace', '-n', 'namespace', default=None, 
+              type=click.Choice(multi_asic_util.multi_asic_ns_choices() + ['default']), 
+              show_default=True, help='Namespace name or all')
+@clicommon.pass_db
+def enable_rate_limit_feature(db, service_name, namespace):
+    """ Enable syslog rate limit feature """
+    feature_list = get_feature_names_to_proceed(db, service_name, namespace)
+    for feature_name in feature_list:
+        click.echo(f'Enabling syslog rate limit feature for {feature_name}')
+        shell_cmd = f'docker ps -f status=running --format "{{{{.Names}}}}" | grep -E "^{feature_name}$"'
+        output, _ = clicommon.run_command(shell_cmd, return_cmd=True, shell=True)
+        if not output:
+            click.echo(f'{feature_name} is not running, ignoring...')
+            continue
+        
+        output, _ = clicommon.run_command(['docker', 'exec', '-i', feature_name, 'supervisorctl', 'status', 'containercfgd'], 
+                                          ignore_error=True, return_cmd=True)
+        if 'no such process' not in output:
+            click.echo(f'Syslog rate limit feature is already enabled in {feature_name}, ignoring...')
+            continue
+        
+        commands = [
+            ['docker', 'cp', '/usr/share/sonic/templates/containercfgd.conf', f'{feature_name}:/etc/supervisor/conf.d/'],
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'reread'],
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'update'],
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'start', 'containercfgd']
+        ]
+        
+        failed = False
+        for command in commands:
+            output, ret = clicommon.run_command(command, return_cmd=True)
+            if ret != 0:
+                failed = True
+                click.echo(f'Enable syslog rate limit feature for {feature_name} failed - {output}')
+                break
+        
+        if not failed:
+            click.echo(f'Enabled syslog rate limit feature for {feature_name}')
+
+
+@rate_limit_feature.command("disable")
+@click.argument("service_name", required=False)
+@click.option('--namespace', '-n', 'namespace', default=None, 
+              type=click.Choice(multi_asic_util.multi_asic_ns_choices() + ['default']), 
+              show_default=True, help='Namespace name or all')
+@clicommon.pass_db
+def disable_rate_limit_feature(db, service_name, namespace):
+    """ Disable syslog rate limit feature """
+    feature_list = get_feature_names_to_proceed(db, service_name, namespace)
+    for feature_name in feature_list:
+        click.echo(f'Disabling syslog rate limit feature for {feature_name}')
+        shell_cmd = f'docker ps -f status=running --format "{{{{.Names}}}}" | grep -E "^{feature_name}$"'
+        output, _ = clicommon.run_command(shell_cmd, return_cmd=True, shell=True)
+        if not output:
+            click.echo(f'{feature_name} is not running, ignoring...')
+            continue
+        
+        output, _ = clicommon.run_command(['docker', 'exec', '-i', feature_name, 'supervisorctl', 'status', 'containercfgd'], 
+                                          ignore_error=True, return_cmd=True)
+        if 'no such process' in output:
+            click.echo(f'Syslog rate limit feature is already disabled in {feature_name}, ignoring...')
+            continue
+        
+        commands = [
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'stop', 'containercfgd'],
+            ['docker', 'exec', '-i', feature_name, 'rm', '-f', '/etc/supervisor/conf.d/containercfgd.conf'],
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'reread'],
+            ['docker', 'exec', '-i', feature_name, 'supervisorctl', 'update']
+        ]
+        failed = False
+        for command in commands:
+            output, ret = clicommon.run_command(command, return_cmd=True)
+            if ret != 0:
+                failed = True
+                click.echo(f'Disable syslog rate limit feature for {feature_name} failed - {output}')
+                break
+        
+        if not failed:
+            click.echo(f'Disabled syslog rate limit feature for {feature_name}')
