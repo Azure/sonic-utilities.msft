@@ -122,6 +122,7 @@ Ethernet8: SFP EEPROM detected
         ModuleMonitorValues:
                 Temperature: 44.9883C
                 Vcc: 3.2999Volts
+                Pre-FEC BER (Current): 1.51E-04
         ModuleThresholdValues:
                 TempHighAlarm  : 80.0000C
                 TempHighWarning: 75.0000C

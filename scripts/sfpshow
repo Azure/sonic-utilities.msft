@@ -132,7 +132,8 @@ QSFP_DD_DOM_CHANNEL_MONITOR_MAP = {
 
 DOM_MODULE_MONITOR_MAP = {
     'temperature': 'Temperature',
-    'voltage': 'Vcc'
+    'voltage': 'Vcc',
+    'prefec_ber_curr_media_input1': 'Pre-FEC BER (Current)'
 }
 
 DOM_CHANNEL_THRESHOLD_UNIT_MAP = {
@@ -175,7 +176,8 @@ DOM_VALUE_UNIT_MAP = {
     'tx3power': 'dBm',
     'tx4power': 'dBm',
     'temperature': 'C',
-    'voltage': 'Volts'
+    'voltage': 'Volts',
+    'prefec_ber_curr_media_input1': ''
 }
 
 QSFP_DD_DOM_VALUE_UNIT_MAP = {
@@ -440,6 +442,19 @@ class SFPShow(object):
 
         return output_dom
 
+    # Beautify Pre-FEC BER raw value read from STATE_DB (e.g. '9.049999999999999e-05')
+    # into a readable scientific-notation string (e.g. '9.05E-05')
+    def beautify_prefec_ber_value(self, raw_value):
+        if raw_value is None or raw_value == 'N/A':
+            return raw_value
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return raw_value
+        if value == 0:
+            return '0.0'
+        return "{:.2E}".format(value)
+
     # Convert sfp info and dom sensor info in DB to cli output string
     def convert_interface_sfp_info_to_cli_output_string(self, state_db, interface_name, dump_dom):
         output = ''
@@ -458,6 +473,9 @@ class SFPShow(object):
                     sfp_type = sfp_info_dict['type']
                     dom_info_dict = state_db.get_all(state_db.STATE_DB, 'TRANSCEIVER_DOM_SENSOR|{}'.format(interface_name))
                     dom_info_dict.update(state_db.get_all(state_db.STATE_DB, 'TRANSCEIVER_DOM_THRESHOLD|{}'.format(interface_name)))
+                    if 'prefec_ber_curr_media_input1' in dom_info_dict:
+                        dom_info_dict['prefec_ber_curr_media_input1'] = self.beautify_prefec_ber_value(
+                            dom_info_dict['prefec_ber_curr_media_input1'])
                     dom_output = self.convert_dom_to_output_string(sfp_type, dom_info_dict)
                     output += dom_output
         else:

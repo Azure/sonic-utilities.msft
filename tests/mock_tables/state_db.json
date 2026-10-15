@@ -113,7 +113,8 @@
         "tx5power": "1.175",
         "tx6power": "1.175",
         "tx7power": "1.175",
-        "tx8power": "1.175"
+        "tx8power": "1.175",
+        "prefec_ber_curr_media_input1": "0.00015099999999999998"
     },
     "TRANSCEIVER_DOM_THRESHOLD|Ethernet8": {
         "rxpowerhighalarm": "6.9999",
