@@ -143,7 +143,7 @@ class TestPortChannel(object):
         obj = {'db': db.cfgdb}
 
         # add a portchannel with fallback
-        result = runner.invoke(config.config.commands["portchannel"].commands["add"], ["PortChannel0005", "--fallback", fast_rate], obj=obj)
+        result = runner.invoke(config.config.commands["portchannel"].commands["add"], ["PortChannel0005", "--fallback", fallback], obj=obj)
         print(result.exit_code)
         print(result.output)
         assert result.exit_code == 0
