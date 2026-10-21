@@ -148,8 +148,8 @@ class TestPortChannel(object):
         print(result.output)
         assert result.exit_code == 0
 
-    @pytest.mark.parametrize("fast_rate", ["false", "true", "always"])
-    def test_add_portchannel_with_invalid_fallback(self, fast_rate):
+    @pytest.mark.parametrize("fallback", ["always", "never"])
+    def test_add_portchannel_with_invalid_fallback(self, fallback):
         runner = CliRunner()
         db = Db()
         obj = {'db': db.cfgdb}
