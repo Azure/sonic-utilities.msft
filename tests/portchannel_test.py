@@ -135,6 +135,32 @@ class TestPortChannel(object):
         assert result.exit_code != 0
         assert 'Invalid value for "--fast-rate"'  in result.output
 
+    @pytest.mark.parametrize("fallback", ["none", "static", "single"])
+    def test_add_portchannel_with_fallback_adhoc_validation(self, fallback):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+
+        # add a portchannel with fallback
+        result = runner.invoke(config.config.commands["portchannel"].commands["add"], ["PortChannel0005", "--fallback", fallback], obj=obj)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+
+    @pytest.mark.parametrize("fallback", ["always", "never"])
+    def test_add_portchannel_with_invalid_fallback(self, fallback):
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+
+        # add a portchannel with invalid fallback
+        result = runner.invoke(config.config.commands["portchannel"].commands["add"], ["PortChannel0005", "--fallback", fallback], obj=obj)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code != 0
+        assert 'Invalid value for \'--fallback\'' in result.output
+
     def test_add_portchannel_member_with_invalid_name(self):
         runner = CliRunner()
         db = Db()
