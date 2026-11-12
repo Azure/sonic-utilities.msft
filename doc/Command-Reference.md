@@ -2465,6 +2465,18 @@ This command displays the summary of all IPv4 & IPv6 bgp neighbors that are conf
 
 **show bgp neighbors (Versions >= 201904 using default FRR routing stack)**
 
+FRR neighbor queries also accept a case-sensitive configured interface name
+for an unnumbered neighbor, such as `Ethernet16` or `PortChannel101`.
+This applies to `show ip bgp neighbors` and its VRF form, including `routes`,
+`advertised-routes`, and `received-routes`. The interface must be a configured
+BGP neighbor; arbitrary interface identifiers are not accepted.
+
+```
+show ip bgp neighbors Ethernet16
+show ip bgp neighbors Ethernet16 advertised-routes
+show ip bgp vrf Vrf-red neighbors Ethernet16 routes
+```
+
 **show ip bgp neighbors (Versions <= 201811 using Quagga routing stack)**
 
 This command displays all the details of IPv4 & IPv6 BGP neighbors when no optional argument is specified.
@@ -2630,6 +2642,16 @@ This command displays the summary of all IPv6 bgp neighbors that are configured 
 
 
 **show bgp ipv6 neighbors (Versions >= 201904 using default FRR routing stack)**
+
+FRR IPv6 neighbor queries also accept a case-sensitive configured interface
+name for an unnumbered neighbor. Existing IPv6-address queries, namespace
+selection, and route-detail options retain their behavior.
+
+```
+show ipv6 bgp neighbors Ethernet16
+show ipv6 bgp neighbors Ethernet16 advertised-routes
+show ipv6 bgp vrf Vrf-red neighbors Ethernet16 routes
+```
 
 **show ipv6 bgp neighbors (Versions <= 201811 using Quagga routing stack)**
 
